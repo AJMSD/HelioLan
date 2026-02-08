@@ -1,0 +1,16 @@
+# local.properties template
+# Copy this file to local.properties and fill in your local paths
+# DO NOT commit local.properties to version control
+
+## This file must *NOT* be checked into Version Control Systems,
+# as it contains information specific to your local configuration.
+#
+# Location of the SDK. This is only used by Gradle.
+# For customization when using a Version Control System, please read the
+# header note.
+sdk.dir=/path/to/your/Android/SDK
+
+## Uncomment and configure if using custom NDK
+# ndk.dir=/path/to/your/Android/NDK
+
+## No secrets should be stored here - this is just for local SDK paths

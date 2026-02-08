@@ -1,0 +1,26 @@
+<resources>
+    <string name="app_name">HelioLAN</string>
+    
+    <!-- Setup Flow -->
+    <string name="setup_title">Get HelioLAN Working</string>
+    <string name="setup_step_health_connect">Enable Zepp → Health Connect sync</string>
+    <string name="setup_step_permissions">Grant Health Connect permissions</string>
+    <string name="setup_step_sync">Run first sync</string>
+    <string name="setup_step_passcode">Set passcode (optional)</string>
+    <string name="setup_step_dashboard">Start laptop dashboard</string>
+    
+    <!-- Dashboard Service -->
+    <string name="dashboard_service_running">HelioLAN dashboard is running</string>
+    <string name="dashboard_service_url">Dashboard available at %1$s</string>
+    
+    <!-- Common -->
+    <string name="action_sync">Sync Now</string>
+    <string name="action_start">Start Dashboard</string>
+    <string name="action_stop">Stop Dashboard</string>
+    <string name="action_settings">Settings</string>
+    
+    <!-- Errors -->
+    <string name="error_health_connect_unavailable">Health Connect is not available</string>
+    <string name="error_permissions_denied">Some permissions were denied</string>
+    <string name="error_sync_failed">Sync failed. Please try again.</string>
+</resources>

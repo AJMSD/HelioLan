@@ -1,3 +1,12 @@
+# Documentation files (not needed in repo)
+SETUP.md
+TESTING_GUIDE.md
+VSCODE_SETUP.md
+PHASE*_COMPLETE.md
+PRD.md
+QUICK_START.md
+DEVPLAN.md
+
 # Compiled class file
 *.class
 
@@ -25,3 +34,20 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+
+# Gradle files
+.gradle/
+build/
+*/build/
+.gradletasknamecache
+
+# Local configuration file (SDK path, etc)
+local.properties
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.swp
+*.bak
+*~
