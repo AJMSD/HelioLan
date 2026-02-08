@@ -12,8 +12,7 @@ plugins {
 
 subprojects {
     apply(plugin = "org.jlleitschuh.gradle.ktlint")
-    // Skip detekt for now - will configure properly later
-    // apply(plugin = "io.gitlab.arturbosch.detekt")
+    apply(plugin = "io.gitlab.arturbosch.detekt")
 
     configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
         version.set("1.1.1")
@@ -22,13 +21,11 @@ subprojects {
         ignoreFailures.set(false)
     }
 
-    /*
     configure<io.gitlab.arturbosch.detekt.extensions.DetektExtension> {
-        config.setFrom(rootProject.files("config/detekt/detekt.yml"))
         buildUponDefaultConfig = true
         allRules = false
+        ignoreFailures = true
     }
-    */
 }
 
 tasks.register("clean", Delete::class) {

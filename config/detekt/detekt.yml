@@ -301,7 +301,7 @@ style:
   UntilInsteadOfRangeTo:
     active: false
   UnusedImports:
-    active = false
+    active: false
   UnusedPrivateClass:
     active: false
   UnusedPrivateMember:
