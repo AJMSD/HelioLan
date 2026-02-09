@@ -52,6 +52,20 @@ interface StepsRecordDao {
     fun getLatest(): Flow<StepsRecord?>
 
     /**
+     * Get the oldest steps record start time.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MIN(start_time) FROM steps_records")
+    suspend fun getOldestStartTime(): Instant?
+
+    /**
+     * Get the latest steps record end time.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MAX(end_time) FROM steps_records")
+    suspend fun getLatestEndTime(): Instant?
+
+    /**
      * Upsert steps records.
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -62,6 +76,13 @@ interface StepsRecordDao {
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(record: StepsRecord)
+
+    /**
+     * Delete records by Health Connect IDs.
+     * Used by SyncEngine to replace stale data in safety windows.
+     */
+    @Query("DELETE FROM steps_records WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 
     /**
      * Delete all records.

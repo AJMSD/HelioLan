@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
@@ -128,15 +129,10 @@ class PermissionManager
         }
 
         /**
-         * Create intent to request Health Connect permissions.
-         * Use this with ActivityResultLauncher to handle the permission flow.
+         * Create the official Health Connect permission request contract.
          */
-        fun createPermissionRequestIntent(): Intent {
-            val providerPackageName = "com.google.android.apps.healthdata"
-            return Intent("androidx.health.ACTION_REQUEST_PERMISSIONS").apply {
-                setPackage(providerPackageName)
-                putExtra("androidx.health.EXTRA_PERMISSIONS", getRequiredPermissions().toTypedArray())
-            }
+        fun createPermissionRequestContract(): ActivityResultContract<Set<String>, Set<String>> {
+            return PermissionController.createRequestPermissionResultContract()
         }
 
         /**
@@ -183,28 +179,3 @@ class PermissionManager
             }
         }
     }
-
-/**
- * Activity result contract for requesting Health Connect permissions.
- */
-class RequestHealthPermissions : ActivityResultContract<Set<String>, Set<String>>() {
-    override fun createIntent(
-        context: Context,
-        input: Set<String>,
-    ): Intent {
-        val providerPackageName = "com.google.android.apps.healthdata"
-        return Intent("androidx.health.ACTION_REQUEST_PERMISSIONS").apply {
-            setPackage(providerPackageName)
-            putExtra("androidx.health.EXTRA_PERMISSIONS", input.toTypedArray())
-        }
-    }
-
-    override fun parseResult(
-        resultCode: Int,
-        intent: Intent?,
-    ): Set<String> {
-        // Re-check permissions after the flow completes
-        // The actual granted permissions need to be queried from HealthConnectClient
-        return emptySet()
-    }
-}

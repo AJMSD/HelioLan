@@ -6,6 +6,7 @@ PHASE*_COMPLETE.md
 PRD.md
 QUICK_START.md
 DEVPLAN.md
+story/
 
 # Compiled class file
 *.class

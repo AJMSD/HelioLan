@@ -11,6 +11,7 @@ import androidx.health.connect.client.time.TimeRangeFilter
 import com.heliolan.data.entity.HeartRateSample
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
+import com.heliolan.data.entity.SleepStage
 import com.heliolan.healthconnect.mapper.HealthConnectMapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
@@ -123,7 +124,7 @@ class HealthConnectReader
          * Read sleep session with stages from Health Connect by ID.
          * Used after inserting a sleep session to get its stages.
          */
-        suspend fun readSleepSessionById(healthConnectId: String): SleepSessionRecord? {
+        private suspend fun readSleepSessionById(healthConnectId: String): SleepSessionRecord? {
             val client = healthConnectClient ?: return null
 
             return try {
@@ -140,6 +141,19 @@ class HealthConnectReader
             } catch (e: Exception) {
                 null
             }
+        }
+
+        /**
+         * Read and map sleep stages for a single sleep session ID.
+         * Returns empty list if session is not found or stages are unavailable.
+         */
+        suspend fun readSleepStages(
+            healthConnectId: String,
+            sessionId: Long,
+            syncedAt: Instant = Instant.now(),
+        ): List<SleepStage> {
+            val record = readSleepSessionById(healthConnectId) ?: return emptyList()
+            return HealthConnectMapper.mapSleepStages(record, sessionId, syncedAt)
         }
 
         /**

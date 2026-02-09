@@ -38,10 +38,30 @@ interface SleepSessionDao {
     fun getLatest(): Flow<SleepSession?>
 
     /**
+     * Get the oldest sleep session start time.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MIN(start_time) FROM sleep_sessions")
+    suspend fun getOldestStartTime(): Instant?
+
+    /**
+     * Get the latest sleep session end time.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MAX(end_time) FROM sleep_sessions")
+    suspend fun getLatestEndTime(): Instant?
+
+    /**
      * Get sleep session by ID (for loading with stages).
      */
     @Query("SELECT * FROM sleep_sessions WHERE id = :sessionId")
     suspend fun getById(sessionId: Long): SleepSession?
+
+    /**
+     * Get sleep session by Health Connect ID.
+     */
+    @Query("SELECT * FROM sleep_sessions WHERE health_connect_id = :healthConnectId LIMIT 1")
+    suspend fun getByHealthConnectId(healthConnectId: String): SleepSession?
 
     /**
      * Upsert sleep sessions - replaces if Health Connect ID already exists.
@@ -54,6 +74,13 @@ interface SleepSessionDao {
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(session: SleepSession): Long
+
+    /**
+     * Delete a session by Health Connect ID.
+     * Used before re-inserting records within sync safety windows.
+     */
+    @Query("DELETE FROM sleep_sessions WHERE health_connect_id = :healthConnectId")
+    suspend fun deleteByHealthConnectId(healthConnectId: String)
 
     /**
      * Delete all sessions (cascade deletes stages via foreign key).

@@ -23,4 +23,31 @@
     <string name="error_health_connect_unavailable">Health Connect is not available</string>
     <string name="error_permissions_denied">Some permissions were denied</string>
     <string name="error_sync_failed">Sync failed. Please try again.</string>
+
+    <!-- Main debug panel -->
+    <string name="main_debug_title">HelioLAN Debug Panel</string>
+    <string name="main_debug_subtitle">Use this screen to grant Health Connect access and trigger sync.</string>
+    <string name="main_label_health_connect">Health Connect</string>
+    <string name="main_label_permissions">Permissions</string>
+    <string name="main_label_sync">Sync Status</string>
+    <string name="main_label_aggregates">Aggregate Status</string>
+    <string name="main_action_request_permissions">Grant Health Permissions</string>
+    <string name="main_action_sync_now">Sync Now</string>
+    <string name="main_action_refresh_status">Refresh Status</string>
+    <string name="main_action_rebuild_aggregates">Rebuild Aggregates</string>
+    <string name="main_sync_idle">Idle</string>
+    <string name="main_sync_running">Sync in progress...</string>
+    <string name="main_sync_success">Sync success. Stored: %1$d, fetched: %2$d, deduped: %3$d</string>
+    <string name="main_sync_partial">Sync partial. Stored: %1$d, errors: %2$s</string>
+    <string name="main_sync_failure">Sync failed: %1$s</string>
+    <string name="main_aggregates_idle">Idle</string>
+    <string name="main_aggregates_running">Rebuilding aggregates...</string>
+    <string name="main_aggregates_success">Aggregate rebuild complete.</string>
+    <string name="main_aggregates_failure">Aggregate rebuild failed: %1$s</string>
+    <string name="main_health_available">Available</string>
+    <string name="main_health_not_installed">Not installed</string>
+    <string name="main_health_outdated">Outdated</string>
+    <string name="main_health_unknown">Unknown: %1$s</string>
+    <string name="main_permissions_format">HR: %1$s | Sleep: %2$s | Steps: %3$s | Resting HR: %4$s</string>
+    <string name="main_opening_health_connect">Opening Health Connect install page...</string>
 </resources>

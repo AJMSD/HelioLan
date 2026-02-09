@@ -44,6 +44,20 @@ interface RestingHeartRateDao {
     fun getLatest(): Flow<RestingHeartRate?>
 
     /**
+     * Get the oldest resting heart rate date.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MIN(date) FROM resting_heart_rate")
+    suspend fun getOldestDate(): LocalDate?
+
+    /**
+     * Get the latest resting heart rate date.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MAX(date) FROM resting_heart_rate")
+    suspend fun getLatestDate(): LocalDate?
+
+    /**
      * Upsert resting heart rate records.
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -54,6 +68,13 @@ interface RestingHeartRateDao {
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(record: RestingHeartRate)
+
+    /**
+     * Delete records by Health Connect IDs.
+     * Used by SyncEngine to replace stale data in safety windows.
+     */
+    @Query("DELETE FROM resting_heart_rate WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 
     /**
      * Delete all records.

@@ -40,6 +40,20 @@ interface HeartRateSampleDao {
     fun getLatest(): Flow<HeartRateSample?>
 
     /**
+     * Get the oldest heart rate sample timestamp.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MIN(timestamp) FROM heart_rate_samples")
+    suspend fun getOldestTimestamp(): Instant?
+
+    /**
+     * Get the latest heart rate sample timestamp.
+     * Used by aggregation rebuild to determine source-data bounds.
+     */
+    @Query("SELECT MAX(timestamp) FROM heart_rate_samples")
+    suspend fun getLatestTimestamp(): Instant?
+
+    /**
      * Get count of samples in a time range (for pagination).
      */
     @Query(
@@ -65,6 +79,13 @@ interface HeartRateSampleDao {
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(sample: HeartRateSample)
+
+    /**
+     * Delete records by Health Connect IDs.
+     * Used by SyncEngine to replace stale data in safety windows.
+     */
+    @Query("DELETE FROM heart_rate_samples WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 
     /**
      * Delete all samples (for testing or data reset).
