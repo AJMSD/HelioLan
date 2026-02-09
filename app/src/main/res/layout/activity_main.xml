@@ -86,6 +86,22 @@
             android:text="@string/main_aggregates_idle"
             android:textAppearance="?attr/textAppearanceBodyLarge" />
 
+        <TextView
+            android:id="@+id/serverStateLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/main_label_server"
+            android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+        <TextView
+            android:id="@+id/serverStateValueTextView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/main_server_stopped"
+            android:textAppearance="?attr/textAppearanceBodyLarge" />
+
         <Button
             android:id="@+id/requestPermissionsButton"
             android:layout_width="match_parent"
@@ -113,5 +129,26 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="@string/main_action_rebuild_aggregates" />
+
+        <Button
+            android:id="@+id/startDashboardButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/main_action_start_dashboard" />
+
+        <Button
+            android:id="@+id/stopDashboardButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/main_action_stop_dashboard" />
+
+        <Button
+            android:id="@+id/refreshServerInfoButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/main_action_refresh_server_info" />
     </LinearLayout>
 </ScrollView>

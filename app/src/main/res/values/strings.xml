@@ -12,6 +12,8 @@
     <!-- Dashboard Service -->
     <string name="dashboard_service_running">HelioLAN dashboard is running</string>
     <string name="dashboard_service_url">Dashboard available at %1$s</string>
+    <string name="dashboard_service_starting">Starting dashboard server...</string>
+    <string name="dashboard_service_error_start_failed">Dashboard failed to start. Check logs and retry.</string>
     
     <!-- Common -->
     <string name="action_sync">Sync Now</string>
@@ -31,10 +33,14 @@
     <string name="main_label_permissions">Permissions</string>
     <string name="main_label_sync">Sync Status</string>
     <string name="main_label_aggregates">Aggregate Status</string>
+    <string name="main_label_server">Server Status</string>
     <string name="main_action_request_permissions">Grant Health Permissions</string>
     <string name="main_action_sync_now">Sync Now</string>
     <string name="main_action_refresh_status">Refresh Status</string>
     <string name="main_action_rebuild_aggregates">Rebuild Aggregates</string>
+    <string name="main_action_start_dashboard">Start Dashboard</string>
+    <string name="main_action_stop_dashboard">Stop Dashboard</string>
+    <string name="main_action_refresh_server_info">Refresh Server Info</string>
     <string name="main_sync_idle">Idle</string>
     <string name="main_sync_running">Sync in progress...</string>
     <string name="main_sync_success">Sync success. Stored: %1$d, fetched: %2$d, deduped: %3$d</string>
@@ -50,4 +56,7 @@
     <string name="main_health_unknown">Unknown: %1$s</string>
     <string name="main_permissions_format">HR: %1$s | Sleep: %2$s | Steps: %3$s | Resting HR: %4$s</string>
     <string name="main_opening_health_connect">Opening Health Connect install page...</string>
+    <string name="main_server_stopped">Stopped</string>
+    <string name="main_server_running">Running at %1$s (%2$s clients)</string>
+    <string name="main_server_error">Server error: %1$s</string>
 </resources>

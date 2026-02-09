@@ -1,20 +1,25 @@
 package com.heliolan.app.ui
 
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.heliolan.app.R
 import com.heliolan.app.databinding.ActivityMainBinding
+import com.heliolan.app.service.DashboardForegroundService
 import com.heliolan.healthconnect.model.HealthConnectAvailability
 import com.heliolan.healthconnect.model.PermissionState
 import com.heliolan.healthconnect.model.PermissionStatus
 import com.heliolan.healthconnect.permission.PermissionManager
+import com.heliolan.server.DashboardServerController
 import com.heliolan.sync.model.SyncResult
 import com.heliolan.sync.scheduler.SyncScheduler
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Locale
 import javax.inject.Inject
@@ -26,6 +31,9 @@ class MainActivity : AppCompatActivity() {
 
     @Inject
     lateinit var syncScheduler: SyncScheduler
+
+    @Inject
+    lateinit var dashboardServerController: DashboardServerController
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var healthPermissionLauncher: ActivityResultLauncher<Set<String>>
@@ -56,10 +64,25 @@ class MainActivity : AppCompatActivity() {
         binding.rebuildAggregatesButton.setOnClickListener {
             rebuildAggregates()
         }
+        binding.startDashboardButton.setOnClickListener {
+            startDashboardServer()
+        }
+        binding.stopDashboardButton.setOnClickListener {
+            stopDashboardServer()
+        }
+        binding.refreshServerInfoButton.setOnClickListener {
+            refreshServerState()
+        }
 
         lifecycleScope.launch {
             refreshAvailabilityAndPermissions()
+            refreshServerState()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshServerState()
     }
 
     private fun requestHealthPermissions() {
@@ -135,6 +158,58 @@ class MainActivity : AppCompatActivity() {
 
         val permissionState = permissionManager.getPermissionState()
         binding.permissionStateValueTextView.text = permissionState.toDisplayString()
+    }
+
+    private fun startDashboardServer() {
+        val intent =
+            Intent(this, DashboardForegroundService::class.java).apply {
+                action = DashboardForegroundService.ACTION_START
+            }
+        ContextCompat.startForegroundService(this, intent)
+        binding.serverStateValueTextView.text = getString(R.string.dashboard_service_starting)
+        observeDashboardStartup()
+    }
+
+    private fun stopDashboardServer() {
+        val intent =
+            Intent(this, DashboardForegroundService::class.java).apply {
+                action = DashboardForegroundService.ACTION_STOP
+            }
+        startService(intent)
+        binding.serverStateValueTextView.text = getString(R.string.main_server_stopped)
+    }
+
+    private fun refreshServerState() {
+        val runtimeInfo = dashboardServerController.getRuntimeInfo()
+        binding.serverStateValueTextView.text =
+            if (runtimeInfo == null) {
+                getString(R.string.main_server_stopped)
+            } else {
+                getString(
+                    R.string.main_server_running,
+                    runtimeInfo.dashboardUrl,
+                    runtimeInfo.connectedClients,
+                )
+            }
+    }
+
+    private fun observeDashboardStartup() {
+        lifecycleScope.launch {
+            repeat(20) {
+                delay(500)
+                val runtimeInfo = dashboardServerController.getRuntimeInfo()
+                if (runtimeInfo != null) {
+                    binding.serverStateValueTextView.text =
+                        getString(
+                            R.string.main_server_running,
+                            runtimeInfo.dashboardUrl,
+                            runtimeInfo.connectedClients,
+                        )
+                    return@launch
+                }
+            }
+            binding.serverStateValueTextView.text = getString(R.string.dashboard_service_error_start_failed)
+        }
     }
 
     private fun HealthConnectAvailability.toDisplayString(): String {

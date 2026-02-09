@@ -29,6 +29,7 @@ dependencies {
     // Module dependencies
     implementation(project(":data"))
     implementation(project(":sync"))
+    implementation(project(":healthconnect"))
     implementation(project(":dashboard"))
 
     // Ktor Server
@@ -43,6 +44,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.moshi)
     implementation(libs.moshi.kotlin)
+    implementation(libs.bcrypt)
 
     // Hilt
     implementation(libs.hilt.android)
