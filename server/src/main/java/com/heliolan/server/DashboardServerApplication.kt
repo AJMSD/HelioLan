@@ -24,8 +24,8 @@ import com.heliolan.server.security.SessionManager
 import com.heliolan.server.security.SetPasscodeRequest
 import com.heliolan.sync.engine.SyncEngine
 import com.heliolan.sync.scheduler.SyncScheduler
-import io.ktor.http.Cookie
 import io.ktor.http.ContentType
+import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -35,8 +35,8 @@ import io.ktor.server.plugins.compression.Compression
 import io.ktor.server.plugins.compression.gzip
 import io.ktor.server.plugins.compression.minimumSize
 import io.ktor.server.plugins.origin
-import io.ktor.server.request.receiveText
 import io.ktor.server.request.path
+import io.ktor.server.request.receiveText
 import io.ktor.server.request.uri
 import io.ktor.server.response.header
 import io.ktor.server.response.respond
@@ -64,6 +64,7 @@ import kotlinx.serialization.json.buildJsonObject
 import java.io.FileNotFoundException
 import java.net.NetworkInterface
 import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Clock
 import java.time.Instant
@@ -72,7 +73,6 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
-import java.nio.charset.StandardCharsets
 import java.util.Collections
 
 private val json =
@@ -348,8 +348,9 @@ fun Application.configureDashboardApplication(
                         call.respondApiError(
                             status = HttpStatusCode.BadRequest,
                             code = "INVALID_PASSCODE_FORMAT",
-                            message = setResult.exceptionOrNull()?.message
-                                ?: "Passcode must be 4-8 digits.",
+                            message =
+                                setResult.exceptionOrNull()?.message
+                                    ?: "Passcode must be 4-8 digits.",
                         )
                         return@post
                     }
@@ -481,9 +482,18 @@ fun Application.configureDashboardApplication(
                         recordTypes = setOf(RecordType.HEART_RATE),
                         clock = clock,
                     )
+                val etagSeed =
+                    listOf(
+                        "heartrate",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
                 if (
                     call.respondNotModifiedIfMatch(
-                        seed = "heartrate:${range.start}:${range.end}:${pagination.limit}:${pagination.offset}:$fingerprint",
+                        seed = etagSeed,
                         lastModified = lastModified,
                     )
                 ) {
@@ -517,9 +527,18 @@ fun Application.configureDashboardApplication(
                         recordTypes = setOf(RecordType.SLEEP),
                         clock = clock,
                     )
+                val etagSeed =
+                    listOf(
+                        "sleep",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
                 if (
                     call.respondNotModifiedIfMatch(
-                        seed = "sleep:${range.start}:${range.end}:${pagination.limit}:${pagination.offset}:$fingerprint",
+                        seed = etagSeed,
                         lastModified = lastModified,
                     )
                 ) {
@@ -553,9 +572,18 @@ fun Application.configureDashboardApplication(
                         recordTypes = setOf(RecordType.STEPS),
                         clock = clock,
                     )
+                val etagSeed =
+                    listOf(
+                        "steps",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
                 if (
                     call.respondNotModifiedIfMatch(
-                        seed = "steps:${range.start}:${range.end}:${pagination.limit}:${pagination.offset}:$fingerprint",
+                        seed = etagSeed,
                         lastModified = lastModified,
                     )
                 ) {
@@ -589,9 +617,18 @@ fun Application.configureDashboardApplication(
                         recordTypes = setOf(RecordType.RESTING_HR),
                         clock = clock,
                     )
+                val etagSeed =
+                    listOf(
+                        "resting_hr",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
                 if (
                     call.respondNotModifiedIfMatch(
-                        seed = "resting_hr:${range.start}:${range.end}:${pagination.limit}:${pagination.offset}:$fingerprint",
+                        seed = etagSeed,
                         lastModified = lastModified,
                     )
                 ) {
@@ -896,7 +933,7 @@ private suspend fun SyncEngine.conditionalFingerprint(
         syncStatus
             .sortedBy { it.recordType }
             .joinToString(separator = "|") { cursor ->
-                "${cursor.recordType}:${cursor.lastSyncTime.toString()}:${cursor.changeToken ?: ""}"
+                "${cursor.recordType}:${cursor.lastSyncTime}:${cursor.changeToken ?: ""}"
             }
     val lastModified = syncStatus.maxOf { it.lastSyncTime }
     return fingerprint to lastModified

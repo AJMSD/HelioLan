@@ -59,13 +59,9 @@ object DashboardServerProvidesModule {
 abstract class DashboardServerBindModule {
     @Binds
     @Singleton
-    abstract fun bindDashboardServerController(
-        impl: KtorDashboardServerController,
-    ): DashboardServerController
+    abstract fun bindDashboardServerController(impl: KtorDashboardServerController): DashboardServerController
 
     @Binds
     @Singleton
-    abstract fun bindSecuritySettingsStore(
-        impl: SharedPreferencesSecuritySettingsStore,
-    ): SecuritySettingsStore
+    abstract fun bindSecuritySettingsStore(impl: SharedPreferencesSecuritySettingsStore): SecuritySettingsStore
 }

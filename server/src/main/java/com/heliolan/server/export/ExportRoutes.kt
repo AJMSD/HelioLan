@@ -140,8 +140,14 @@ private suspend fun ApplicationCall.respondError(
 ) {
     val escapedMessage = message.replace("\"", "\\\"")
     val escapedCode = code.replace("\"", "\\\"")
+    val payload =
+        "{" +
+            "\"ok\":false," +
+            "\"error\":{\"code\":\"$escapedCode\",\"message\":\"$escapedMessage\"}," +
+            "\"meta\":{\"path\":\"${request.uri}\"}" +
+            "}"
     respondText(
-        text = """{"ok":false,"error":{"code":"$escapedCode","message":"$escapedMessage"},"meta":{"path":"${request.uri}"}}""",
+        text = payload,
         contentType = ContentType.Application.Json,
         status = status,
     )

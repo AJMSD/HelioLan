@@ -43,6 +43,7 @@ class DashboardForegroundService : Service() {
     lateinit var dashboardServerController: DashboardServerController
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     @Volatile
     private var latestDashboardQrCode: Bitmap? = null
 
@@ -134,8 +135,7 @@ class DashboardForegroundService : Service() {
     }
 
     private fun updateNotification(url: String?) {
-        val notificationManager = getSystemService(NotificationManager::class.java)
-        notificationManager.notify(NOTIFICATION_ID, createNotification(url = url))
+        startForeground(NOTIFICATION_ID, createNotification(url = url))
     }
 
     private fun createNotification(
