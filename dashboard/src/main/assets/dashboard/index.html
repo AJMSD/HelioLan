@@ -3,17 +3,82 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HelioLAN local dashboard for heart rate, sleep, and activity insights.">
     <title>HelioLAN Dashboard</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="/dashboard/css/style.css?v=20260210a">
 </head>
 <body>
-    <div id="app">
-        <h1>HelioLAN Dashboard</h1>
-        <p>Dashboard placeholder - will be implemented in Phase 8</p>
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+
+    <div id="offlineBanner" class="offline-banner" hidden>
+        HelioLAN is offline. Open the app on your phone and keep it running.
     </div>
-    
-    <script src="lib/chart.min.js"></script>
-    <script src="js/api.js"></script>
-    <script src="js/app.js"></script>
+
+    <main id="loginScreen" class="screen login-screen">
+        <section class="auth-card">
+            <p class="eyebrow">Local Network Dashboard</p>
+            <h1>HelioLAN</h1>
+            <p class="subtle" id="loginSubtitle">Checking server status...</p>
+            <form id="loginForm" class="auth-form" autocomplete="on">
+                <label for="passcodeInput">Passcode</label>
+                <input
+                    id="passcodeInput"
+                    type="password"
+                    inputmode="numeric"
+                    minlength="4"
+                    maxlength="8"
+                    placeholder="Enter passcode"
+                    required
+                >
+                <button id="loginButton" type="submit" class="btn btn-primary">Sign In</button>
+            </form>
+            <form id="setPasscodeForm" class="auth-form hidden" autocomplete="off" hidden>
+                <p class="helper">No passcode is configured yet. Set one now.</p>
+                <label for="newPasscodeInput">New passcode</label>
+                <input
+                    id="newPasscodeInput"
+                    type="password"
+                    inputmode="numeric"
+                    minlength="4"
+                    maxlength="8"
+                    placeholder="4-8 digits"
+                >
+                <button id="setPasscodeButton" type="submit" class="btn btn-primary">Set Passcode</button>
+            </form>
+            <p id="authMessage" class="message" aria-live="polite"></p>
+            <p class="build-meta"><span id="appVersion">v-</span></p>
+        </section>
+    </main>
+
+    <main id="appShell" class="screen app-shell hidden" hidden>
+        <header class="topbar">
+            <div class="brand-wrap">
+                <p class="eyebrow">HelioLAN</p>
+                <h2>Health Dashboard</h2>
+            </div>
+            <div class="topbar-actions">
+                <span id="lastSyncedPill" class="pill">Last synced: --</span>
+                <button id="logoutButton" type="button" class="btn btn-ghost">Log out</button>
+            </div>
+        </header>
+
+        <nav class="view-nav" id="viewNav" aria-label="Primary">
+            <button type="button" class="nav-item active" data-view="today">Today</button>
+            <button type="button" class="nav-item" data-view="sleep">Sleep</button>
+            <button type="button" class="nav-item" data-view="cardio">Cardio</button>
+            <button type="button" class="nav-item" data-view="activity">Activity</button>
+            <button type="button" class="nav-item" data-view="settings">Settings</button>
+        </nav>
+
+        <section id="globalStatus" class="global-status" aria-live="polite"></section>
+        <section id="viewContainer" class="view-container"></section>
+    </main>
+
+    <script src="/dashboard/lib/chart.min.js?v=20260210a"></script>
+    <script src="/dashboard/js/api.js?v=20260210a"></script>
+    <script src="/dashboard/js/utils.js?v=20260210a"></script>
+    <script src="/dashboard/js/charts.js?v=20260210a"></script>
+    <script src="/dashboard/js/app.js?v=20260210a"></script>
 </body>
 </html>

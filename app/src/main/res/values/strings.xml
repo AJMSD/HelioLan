@@ -1,34 +1,62 @@
 <resources>
     <string name="app_name">HelioLAN</string>
-    
-    <!-- Setup Flow -->
+
+    <!-- Setup flow -->
     <string name="setup_title">Get HelioLAN Working</string>
-    <string name="setup_step_health_connect">Enable Zepp → Health Connect sync</string>
-    <string name="setup_step_permissions">Grant Health Connect permissions</string>
-    <string name="setup_step_sync">Run first sync</string>
-    <string name="setup_step_passcode">Set passcode (optional)</string>
-    <string name="setup_step_dashboard">Start laptop dashboard</string>
-    
-    <!-- Dashboard Service -->
+    <string name="setup_summary_initial">0/5 setup steps completed</string>
+    <string name="setup_step_zepp_status">1. Zepp to Health Connect sync: %1$s</string>
+    <string name="setup_step_permissions_status">2. Health Connect permissions: %1$s</string>
+    <string name="setup_step_sync_status">3. First sync completed: %1$s</string>
+    <string name="setup_step_passcode_status">4. Passcode configured or skipped: %1$s</string>
+    <string name="setup_step_dashboard_status">5. Dashboard started: %1$s</string>
+    <string name="setup_action_open_zepp_guide">Open Zepp Sync Guide</string>
+    <string name="setup_action_confirm_zepp_sync">Mark Zepp Sync Ready</string>
+    <string name="setup_action_request_permissions">Request Permissions</string>
+    <string name="setup_action_run_first_sync">Run First Sync</string>
+    <string name="setup_action_set_passcode">Set Passcode</string>
+    <string name="setup_action_skip_passcode">Skip Passcode</string>
+    <string name="setup_action_start_dashboard">Start Dashboard</string>
+    <string name="setup_action_refresh_status">Refresh Setup Status</string>
+    <string name="setup_action_finish">Finish Setup</string>
+    <string name="setup_hint_passcode">4-8 digit passcode</string>
+    <string name="setup_message_ready">Setup complete. Opening dashboard control panel.</string>
+    <string name="setup_message_not_ready">Complete all setup steps before finishing.</string>
+    <string name="setup_message_open_zepp">Open Zepp and enable Health Connect sync, then mark this step done.</string>
+    <string name="setup_message_permissions_missing">Health permissions still missing. Grant access and retry.</string>
+    <string name="setup_message_sync_running">Running first sync...</string>
+    <string name="setup_message_sync_success">First sync completed.</string>
+    <string name="setup_message_sync_failure">First sync failed: %1$s</string>
+    <string name="setup_message_passcode_invalid">Passcode must be 4-8 digits.</string>
+    <string name="setup_message_passcode_set">Passcode set successfully.</string>
+    <string name="setup_message_passcode_skip">Passcode skipped. You can set it later.</string>
+    <string name="setup_message_passcode_failure">Passcode update failed: %1$s</string>
+    <string name="setup_message_dashboard_starting">Starting dashboard service...</string>
+    <string name="setup_message_dashboard_started">Dashboard started at %1$s</string>
+    <string name="setup_message_dashboard_stopped">Dashboard is not running yet.</string>
+
+    <!-- Dashboard service -->
     <string name="dashboard_service_running">HelioLAN dashboard is running</string>
     <string name="dashboard_service_url">Dashboard available at %1$s</string>
     <string name="dashboard_service_starting">Starting dashboard server...</string>
     <string name="dashboard_service_error_start_failed">Dashboard failed to start. Check logs and retry.</string>
-    
-    <!-- Common -->
+    <string name="dashboard_service_wifi_paused">Wi-Fi disconnected. Dashboard paused.</string>
+    <string name="dashboard_service_battery_warning">Battery saver is on. Dashboard may pause.</string>
+    <string name="dashboard_service_action_open">Open Dashboard</string>
+
+    <!-- Common actions -->
     <string name="action_sync">Sync Now</string>
     <string name="action_start">Start Dashboard</string>
     <string name="action_stop">Stop Dashboard</string>
     <string name="action_settings">Settings</string>
-    
+
     <!-- Errors -->
     <string name="error_health_connect_unavailable">Health Connect is not available</string>
     <string name="error_permissions_denied">Some permissions were denied</string>
     <string name="error_sync_failed">Sync failed. Please try again.</string>
 
-    <!-- Main debug panel -->
-    <string name="main_debug_title">HelioLAN Debug Panel</string>
-    <string name="main_debug_subtitle">Use this screen to grant Health Connect access and trigger sync.</string>
+    <!-- Main app shell -->
+    <string name="main_title">HelioLAN Control Panel</string>
+    <string name="main_subtitle">Start dashboard, sync data, and verify device readiness.</string>
     <string name="main_label_health_connect">Health Connect</string>
     <string name="main_label_permissions">Permissions</string>
     <string name="main_label_sync">Sync Status</string>
@@ -41,11 +69,16 @@
     <string name="main_action_start_dashboard">Start Dashboard</string>
     <string name="main_action_stop_dashboard">Stop Dashboard</string>
     <string name="main_action_refresh_server_info">Refresh Server Info</string>
+    <string name="main_action_open_dashboard">Open Dashboard in Browser</string>
+    <string name="main_action_open_dashboard_settings">Open Dashboard Settings Tab</string>
+    <string name="main_action_open_setup_settings">Open Setup and Settings</string>
     <string name="main_sync_idle">Idle</string>
     <string name="main_sync_running">Sync in progress...</string>
     <string name="main_sync_success">Sync success. Stored: %1$d, fetched: %2$d, deduped: %3$d</string>
     <string name="main_sync_partial">Sync partial. Stored: %1$d, errors: %2$s</string>
     <string name="main_sync_failure">Sync failed: %1$s</string>
+    <string name="main_sync_summary_unknown">No sync history available yet.</string>
+    <string name="main_sync_summary_format">Last sync summary: %1$s</string>
     <string name="main_aggregates_idle">Idle</string>
     <string name="main_aggregates_running">Rebuilding aggregates...</string>
     <string name="main_aggregates_success">Aggregate rebuild complete.</string>
@@ -57,6 +90,18 @@
     <string name="main_permissions_format">HR: %1$s | Sleep: %2$s | Steps: %3$s | Resting HR: %4$s</string>
     <string name="main_opening_health_connect">Opening Health Connect install page...</string>
     <string name="main_server_stopped">Stopped</string>
-    <string name="main_server_running">Running at %1$s (%2$d clients)</string>
+    <string name="main_server_running">Running</string>
     <string name="main_server_error">Server error: %1$s</string>
+    <string name="main_server_url_unknown">Dashboard URL unavailable</string>
+    <string name="main_server_url_format">Dashboard URL: %1$s</string>
+    <string name="main_server_clients_none">Connected clients: 0</string>
+    <string name="main_server_clients_format">Connected clients: %1$d</string>
+    <string name="main_server_help_stopped">Dashboard feedback: server is stopped. Start dashboard to enable browser access.</string>
+    <string name="main_server_help_running_passcode">Dashboard feedback: sign in with your setup passcode. If the page looks plain or stuck, hard refresh and verify /dashboard/js/app.js loads as JavaScript.</string>
+    <string name="main_server_help_running_open_access">Dashboard feedback: open access is enabled (no passcode required). If the page looks plain or stuck, hard refresh and verify /dashboard/js/app.js loads as JavaScript.</string>
+    <string name="main_server_qr_content_desc">Dashboard QR code</string>
+    <string name="main_warning_wifi_disconnected">Wi-Fi disconnected. Dashboard will pause.</string>
+    <string name="main_warning_battery_saver">Battery saver enabled. Dashboard may pause.</string>
+    <string name="main_warning_health_connect_missing">Health Connect not installed. Install to continue syncing.</string>
+    <string name="main_warning_all_clear">Environment ready.</string>
 </resources>

@@ -218,9 +218,16 @@ fun Application.configureDashboardApplication(
         }
 
         get("/dashboard/{...}") {
-            val rawPath = call.parameters.getAll("...")?.joinToString("/") ?: ""
-            val normalizedPath = rawPath.trim('/').ifBlank { "index.html" }
-            call.respondDashboardAsset(context, "dashboard/$normalizedPath")
+            val assetPath = resolveDashboardAssetPath(call.request.path())
+            if (assetPath == null) {
+                call.respondApiError(
+                    status = HttpStatusCode.NotFound,
+                    code = "ASSET_NOT_FOUND",
+                    message = "Dashboard asset path is invalid.",
+                )
+                return@get
+            }
+            call.respondDashboardAsset(context, assetPath)
         }
 
         route("/api/v1") {
@@ -776,6 +783,35 @@ private fun supportedRecordTypes(): Set<String> =
         RecordType.RESTING_HR,
     )
 
+internal fun resolveDashboardAssetPath(requestPath: String): String? {
+    val prefix = "/dashboard/"
+    if (!requestPath.startsWith(prefix)) {
+        return "dashboard/index.html"
+    }
+
+    val rawRelativePath = requestPath.removePrefix(prefix)
+    if (rawRelativePath.isBlank()) {
+        return "dashboard/index.html"
+    }
+
+    val decodedRelativePath =
+        runCatching {
+            URLDecoder.decode(rawRelativePath, StandardCharsets.UTF_8.name())
+        }.getOrDefault(rawRelativePath)
+
+    val normalizedRelativePath = decodedRelativePath.trim().trim('/')
+    if (normalizedRelativePath.isBlank()) {
+        return "dashboard/index.html"
+    }
+
+    val segments = normalizedRelativePath.split('/').filter { it.isNotBlank() }
+    if (segments.any { it == ".." }) {
+        return null
+    }
+
+    return "dashboard/${segments.joinToString("/")}"
+}
+
 private suspend fun io.ktor.server.application.ApplicationCall.respondDashboardAsset(
     context: Context,
     assetPath: String,
@@ -816,8 +852,8 @@ private suspend fun io.ktor.server.application.ApplicationCall.respondDashboardA
 
 private fun cacheControlForAssetPath(assetPath: String): String {
     return when (assetPath.substringAfterLast('.', missingDelimiterValue = "")) {
-        "html" -> "no-cache"
-        "css", "js", "png", "jpg", "jpeg", "svg", "ico", "woff", "woff2" ->
+        "html", "css", "js" -> "no-cache"
+        "png", "jpg", "jpeg", "svg", "ico", "woff", "woff2" ->
             "public, max-age=31536000, immutable"
         else -> "public, max-age=3600"
     }
