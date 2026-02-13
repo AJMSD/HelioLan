@@ -64,4 +64,3 @@ jobs:
             app/build/outputs/apk/release/SHA256SUMS.txt
           generate_release_notes: true
           append_body: true
-          body_path: RELEASE_NOTES_TEMPLATE.md
