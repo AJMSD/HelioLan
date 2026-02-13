@@ -50,7 +50,7 @@
         <activity
             android:name=".ui.setup.SetupActivity"
             android:exported="true"
-            android:theme="@style/Theme.HelioLAN.Splash">
+            android:theme="@style/Theme.HelioLAN">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
