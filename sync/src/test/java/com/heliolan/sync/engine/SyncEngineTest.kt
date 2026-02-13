@@ -1,13 +1,19 @@
 package com.heliolan.sync.engine
 
 import com.google.common.truth.Truth.assertThat
+import com.heliolan.data.dao.ActiveCaloriesBurnedDao
 import com.heliolan.data.dao.DailyAggregateDao
+import com.heliolan.data.dao.DistanceRecordDao
 import com.heliolan.data.dao.HeartRateSampleDao
+import com.heliolan.data.dao.HrvRecordDao
+import com.heliolan.data.dao.NutritionRecordDao
+import com.heliolan.data.dao.OxygenSaturationDao
 import com.heliolan.data.dao.RestingHeartRateDao
 import com.heliolan.data.dao.SleepSessionDao
 import com.heliolan.data.dao.SleepStageDao
 import com.heliolan.data.dao.StepsRecordDao
 import com.heliolan.data.dao.SyncCursorDao
+import com.heliolan.data.dao.TotalCaloriesBurnedDao
 import com.heliolan.data.entity.DailyAggregate
 import com.heliolan.data.entity.HeartRateSample
 import com.heliolan.data.entity.RestingHeartRate
@@ -18,6 +24,7 @@ import com.heliolan.healthconnect.reader.HealthConnectReader
 import com.heliolan.healthconnect.reader.ReadResult
 import com.heliolan.sync.model.SyncErrorCode
 import com.heliolan.sync.model.SyncResult
+import com.heliolan.sync.model.SyncTrigger
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -40,6 +47,12 @@ class SyncEngineTest {
     private lateinit var sleepStageDao: SleepStageDao
     private lateinit var stepsRecordDao: StepsRecordDao
     private lateinit var restingHeartRateDao: RestingHeartRateDao
+    private lateinit var activeCaloriesBurnedDao: ActiveCaloriesBurnedDao
+    private lateinit var distanceRecordDao: DistanceRecordDao
+    private lateinit var totalCaloriesBurnedDao: TotalCaloriesBurnedDao
+    private lateinit var nutritionRecordDao: NutritionRecordDao
+    private lateinit var oxygenSaturationDao: OxygenSaturationDao
+    private lateinit var hrvRecordDao: HrvRecordDao
     private lateinit var syncCursorDao: SyncCursorDao
     private lateinit var syncEngine: SyncEngine
 
@@ -52,6 +65,12 @@ class SyncEngineTest {
         sleepStageDao = mockk(relaxed = true)
         stepsRecordDao = mockk(relaxed = true)
         restingHeartRateDao = mockk(relaxed = true)
+        activeCaloriesBurnedDao = mockk(relaxed = true)
+        distanceRecordDao = mockk(relaxed = true)
+        totalCaloriesBurnedDao = mockk(relaxed = true)
+        nutritionRecordDao = mockk(relaxed = true)
+        oxygenSaturationDao = mockk(relaxed = true)
+        hrvRecordDao = mockk(relaxed = true)
         syncCursorDao = mockk(relaxed = true)
 
         syncEngine =
@@ -63,10 +82,22 @@ class SyncEngineTest {
                 sleepStageDao = sleepStageDao,
                 stepsRecordDao = stepsRecordDao,
                 restingHeartRateDao = restingHeartRateDao,
+                activeCaloriesBurnedDao = activeCaloriesBurnedDao,
+                distanceRecordDao = distanceRecordDao,
+                totalCaloriesBurnedDao = totalCaloriesBurnedDao,
+                nutritionRecordDao = nutritionRecordDao,
+                oxygenSaturationDao = oxygenSaturationDao,
+                hrvRecordDao = hrvRecordDao,
                 syncCursorDao = syncCursorDao,
             )
 
         coEvery { syncCursorDao.getCursor(any()) } returns null
+        coEvery { healthConnectReader.readActiveCaloriesBurned(any(), any()) } returns ReadResult.Success(emptyList())
+        coEvery { healthConnectReader.readDistance(any(), any()) } returns ReadResult.Success(emptyList())
+        coEvery { healthConnectReader.readTotalCaloriesBurned(any(), any()) } returns ReadResult.Success(emptyList())
+        coEvery { healthConnectReader.readNutrition(any(), any()) } returns ReadResult.Success(emptyList())
+        coEvery { healthConnectReader.readOxygenSaturation(any(), any()) } returns ReadResult.Success(emptyList())
+        coEvery { healthConnectReader.readHrv(any(), any()) } returns ReadResult.Success(emptyList())
     }
 
     @After
@@ -166,6 +197,21 @@ class SyncEngineTest {
         }
 
     @Test
+    fun syncAll_userTrigger_bypassesDebounce() =
+        runTest {
+            coEvery { healthConnectReader.readHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+            coEvery { healthConnectReader.readSleep(any(), any()) } returns ReadResult.Success(emptyList())
+            coEvery { healthConnectReader.readSteps(any(), any()) } returns ReadResult.Success(emptyList())
+            coEvery { healthConnectReader.readRestingHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+
+            val first = syncEngine.syncAll(trigger = SyncTrigger.USER)
+            val second = syncEngine.syncAll(trigger = SyncTrigger.USER)
+
+            assertThat(first).isInstanceOf(SyncResult.Success::class.java)
+            assertThat(second).isInstanceOf(SyncResult.Success::class.java)
+        }
+
+    @Test
     fun syncRecordType_returnsUnsupportedFailure_forUnknownType() =
         runTest {
             val result = syncEngine.syncRecordType("unknown_type")
@@ -237,6 +283,12 @@ class AggregationEngineTest {
     private lateinit var sleepSessionDao: SleepSessionDao
     private lateinit var stepsRecordDao: StepsRecordDao
     private lateinit var restingHeartRateDao: RestingHeartRateDao
+    private lateinit var activeCaloriesBurnedDao: ActiveCaloriesBurnedDao
+    private lateinit var distanceRecordDao: DistanceRecordDao
+    private lateinit var totalCaloriesBurnedDao: TotalCaloriesBurnedDao
+    private lateinit var nutritionRecordDao: NutritionRecordDao
+    private lateinit var oxygenSaturationDao: OxygenSaturationDao
+    private lateinit var hrvRecordDao: HrvRecordDao
     private lateinit var dailyAggregateDao: DailyAggregateDao
     private lateinit var aggregationEngine: AggregationEngine
 
@@ -246,6 +298,12 @@ class AggregationEngineTest {
         sleepSessionDao = mockk(relaxed = true)
         stepsRecordDao = mockk(relaxed = true)
         restingHeartRateDao = mockk(relaxed = true)
+        activeCaloriesBurnedDao = mockk(relaxed = true)
+        distanceRecordDao = mockk(relaxed = true)
+        totalCaloriesBurnedDao = mockk(relaxed = true)
+        nutritionRecordDao = mockk(relaxed = true)
+        oxygenSaturationDao = mockk(relaxed = true)
+        hrvRecordDao = mockk(relaxed = true)
         dailyAggregateDao = mockk(relaxed = true)
 
         aggregationEngine =
@@ -254,8 +312,33 @@ class AggregationEngineTest {
                 sleepSessionDao = sleepSessionDao,
                 stepsRecordDao = stepsRecordDao,
                 restingHeartRateDao = restingHeartRateDao,
+                activeCaloriesBurnedDao = activeCaloriesBurnedDao,
+                distanceRecordDao = distanceRecordDao,
+                totalCaloriesBurnedDao = totalCaloriesBurnedDao,
+                nutritionRecordDao = nutritionRecordDao,
+                oxygenSaturationDao = oxygenSaturationDao,
+                hrvRecordDao = hrvRecordDao,
                 dailyAggregateDao = dailyAggregateDao,
             )
+
+        coEvery { activeCaloriesBurnedDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+        coEvery { distanceRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+        coEvery { totalCaloriesBurnedDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+        coEvery { nutritionRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+        coEvery { oxygenSaturationDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+        coEvery { hrvRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+        coEvery { activeCaloriesBurnedDao.getOldestDate() } returns null
+        coEvery { activeCaloriesBurnedDao.getLatestDate() } returns null
+        coEvery { distanceRecordDao.getOldestStartTime() } returns null
+        coEvery { distanceRecordDao.getLatestEndTime() } returns null
+        coEvery { totalCaloriesBurnedDao.getOldestStartTime() } returns null
+        coEvery { totalCaloriesBurnedDao.getLatestEndTime() } returns null
+        coEvery { nutritionRecordDao.getOldestStartTime() } returns null
+        coEvery { nutritionRecordDao.getLatestEndTime() } returns null
+        coEvery { oxygenSaturationDao.getOldestTimestamp() } returns null
+        coEvery { oxygenSaturationDao.getLatestTimestamp() } returns null
+        coEvery { hrvRecordDao.getOldestTimestamp() } returns null
+        coEvery { hrvRecordDao.getLatestTimestamp() } returns null
     }
 
     @After

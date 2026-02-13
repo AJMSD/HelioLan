@@ -95,6 +95,14 @@ enum class SyncWindowMode {
 }
 
 /**
+ * Distinguishes user-triggered sync requests from automatic/background sync requests.
+ */
+enum class SyncTrigger {
+    USER,
+    AUTOMATIC,
+}
+
+/**
  * Tunables for sync behavior.
  */
 data class SyncConfig(

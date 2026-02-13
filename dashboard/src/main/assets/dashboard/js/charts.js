@@ -91,7 +91,7 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 260
+                    duration: spec.animate === false ? 0 : 260
                 },
                 scales: {
                     y: {
@@ -133,7 +133,7 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 animation: {
-                    duration: 240
+                    duration: spec.animate === false ? 0 : 240
                 },
                 scales: {
                     y: {
@@ -173,6 +173,9 @@
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: spec.animate === false ? 0 : 220
+                },
                 plugins: {
                     legend: { display: false }
                 },

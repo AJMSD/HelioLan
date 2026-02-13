@@ -8,8 +8,7 @@
         sleepTrendWindow: 14,
         cardioTrendWindow: 14,
         activityTrendWindow: 14,
-        refreshBehavior: "periodic",
-        syncWindow: "30_days"
+        nutritionTrendWindow: 14
     };
 
     function cloneDefaults() {
@@ -60,6 +59,18 @@
             return hours + "h";
         }
         return hours + "h " + minutes + "m";
+    }
+
+    function formatDistanceMeters(valueMeters) {
+        var meters = Number(valueMeters || 0);
+        if (!Number.isFinite(meters) || meters <= 0) {
+            return "--";
+        }
+        var kilometers = meters / 1000;
+        if (kilometers >= 1) {
+            return kilometers.toFixed(2) + " km";
+        }
+        return Math.round(meters) + " m";
     }
 
     function formatDate(value) {
@@ -239,7 +250,13 @@
             steps: payload.steps || "unknown",
             sleep: payload.sleep || "unknown",
             heartRate: payload.heart_rate || "unknown",
-            restingHeartRate: payload.resting_hr || "unknown"
+            restingHeartRate: payload.resting_hr || "unknown",
+            activeCalories: payload.active_calories || "unknown",
+            distance: payload.distance || "unknown",
+            totalCalories: payload.total_calories || "unknown",
+            nutrition: payload.nutrition || "unknown",
+            oxygenSaturation: payload.oxygen_saturation || "unknown",
+            hrv: payload.hrv || "unknown"
         };
     }
 
@@ -249,6 +266,7 @@
         savePreferences: savePreferences,
         formatNumber: formatNumber,
         formatDurationMs: formatDurationMs,
+        formatDistanceMeters: formatDistanceMeters,
         formatDate: formatDate,
         formatTime: formatTime,
         formatDateTime: formatDateTime,

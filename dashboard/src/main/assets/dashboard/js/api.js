@@ -271,8 +271,65 @@
     };
 
     ApiClient.prototype.getHrv = function getHrv(forceRefresh) {
+        var query = {};
+        var refresh = false;
+        if (typeof forceRefresh === "object" && forceRefresh !== null) {
+            query = forceRefresh;
+        } else if (typeof forceRefresh === "boolean") {
+            refresh = forceRefresh;
+        }
+        if (arguments.length >= 2) {
+            query = arguments[0] || {};
+            refresh = Boolean(arguments[1]);
+        }
         return this.request("GET", "/hrv", {
-            cacheKey: "hrv",
+            query: query,
+            cacheKey: "hrv_" + JSON.stringify(query),
+            forceRefresh: refresh
+        });
+    };
+
+    ApiClient.prototype.getActiveCalories = function getActiveCalories(params, forceRefresh) {
+        var query = params || {};
+        return this.request("GET", "/calories/active", {
+            query: query,
+            cacheKey: "active_calories_" + JSON.stringify(query),
+            forceRefresh: Boolean(forceRefresh)
+        });
+    };
+
+    ApiClient.prototype.getDistance = function getDistance(params, forceRefresh) {
+        var query = params || {};
+        return this.request("GET", "/distance", {
+            query: query,
+            cacheKey: "distance_" + JSON.stringify(query),
+            forceRefresh: Boolean(forceRefresh)
+        });
+    };
+
+    ApiClient.prototype.getTotalCalories = function getTotalCalories(params, forceRefresh) {
+        var query = params || {};
+        return this.request("GET", "/calories/total", {
+            query: query,
+            cacheKey: "total_calories_" + JSON.stringify(query),
+            forceRefresh: Boolean(forceRefresh)
+        });
+    };
+
+    ApiClient.prototype.getNutrition = function getNutrition(params, forceRefresh) {
+        var query = params || {};
+        return this.request("GET", "/nutrition", {
+            query: query,
+            cacheKey: "nutrition_" + JSON.stringify(query),
+            forceRefresh: Boolean(forceRefresh)
+        });
+    };
+
+    ApiClient.prototype.getOxygenSaturation = function getOxygenSaturation(params, forceRefresh) {
+        var query = params || {};
+        return this.request("GET", "/oxygen-saturation", {
+            query: query,
+            cacheKey: "oxygen_saturation_" + JSON.stringify(query),
             forceRefresh: Boolean(forceRefresh)
         });
     };
@@ -294,8 +351,12 @@
         });
     };
 
-    ApiClient.prototype.triggerSync = async function triggerSync() {
-        var result = await this.request("POST", "/sync/trigger", {});
+    ApiClient.prototype.triggerSync = async function triggerSync(options) {
+        options = options || {};
+        var triggerMode = options.automatic ? "automatic" : "user";
+        var result = await this.request("POST", "/sync/trigger", {
+            query: { trigger: triggerMode }
+        });
         this.clearCache("today");
         this.clearCache("sync_");
         return result;

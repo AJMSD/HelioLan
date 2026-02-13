@@ -2,21 +2,33 @@ package com.heliolan.healthconnect.reader
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.HeartRateRecord
+import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import com.heliolan.data.entity.ActiveCaloriesBurned
 import com.heliolan.data.entity.HeartRateSample
+import com.heliolan.data.entity.HrvRecord
+import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.SleepStage
+import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.healthconnect.mapper.HealthConnectMapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.heliolan.data.entity.DistanceRecord as DistanceRecordEntity
+import com.heliolan.data.entity.NutritionRecord as NutritionRecordEntity
 import com.heliolan.data.entity.StepsRecord as StepsRecordEntity
 
 /**
@@ -217,6 +229,168 @@ class HealthConnectReader
                 ReadResult.PermissionDenied
             } catch (e: Exception) {
                 ReadResult.Error("Failed to read resting heart rate: ${e.message}", e)
+            }
+        }
+
+        /**
+         * Read active calories burned records from Health Connect.
+         */
+        suspend fun readActiveCaloriesBurned(
+            startTime: Instant,
+            endTime: Instant,
+        ): ReadResult<ActiveCaloriesBurned> {
+            val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
+            return try {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = ActiveCaloriesBurnedRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                    )
+                val response = client.readRecords(request)
+                ReadResult.Success(
+                    response.records.map { record ->
+                        HealthConnectMapper.mapActiveCaloriesBurnedRecord(record)
+                    },
+                )
+            } catch (e: SecurityException) {
+                ReadResult.PermissionDenied
+            } catch (e: Exception) {
+                ReadResult.Error("Failed to read active calories: ${e.message}", e)
+            }
+        }
+
+        /**
+         * Read distance records from Health Connect.
+         */
+        suspend fun readDistance(
+            startTime: Instant,
+            endTime: Instant,
+        ): ReadResult<DistanceRecordEntity> {
+            val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
+            return try {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = DistanceRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                    )
+                val response = client.readRecords(request)
+                ReadResult.Success(
+                    response.records.map { record ->
+                        HealthConnectMapper.mapDistanceRecord(record)
+                    },
+                )
+            } catch (e: SecurityException) {
+                ReadResult.PermissionDenied
+            } catch (e: Exception) {
+                ReadResult.Error("Failed to read distance: ${e.message}", e)
+            }
+        }
+
+        /**
+         * Read total calories burned records from Health Connect.
+         */
+        suspend fun readTotalCaloriesBurned(
+            startTime: Instant,
+            endTime: Instant,
+        ): ReadResult<TotalCaloriesBurned> {
+            val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
+            return try {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = TotalCaloriesBurnedRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                    )
+                val response = client.readRecords(request)
+                ReadResult.Success(
+                    response.records.map { record ->
+                        HealthConnectMapper.mapTotalCaloriesBurnedRecord(record)
+                    },
+                )
+            } catch (e: SecurityException) {
+                ReadResult.PermissionDenied
+            } catch (e: Exception) {
+                ReadResult.Error("Failed to read total calories: ${e.message}", e)
+            }
+        }
+
+        /**
+         * Read nutrition records from Health Connect.
+         */
+        suspend fun readNutrition(
+            startTime: Instant,
+            endTime: Instant,
+        ): ReadResult<NutritionRecordEntity> {
+            val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
+            return try {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = NutritionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                    )
+                val response = client.readRecords(request)
+                ReadResult.Success(
+                    response.records.map { record ->
+                        HealthConnectMapper.mapNutritionRecord(record)
+                    },
+                )
+            } catch (e: SecurityException) {
+                ReadResult.PermissionDenied
+            } catch (e: Exception) {
+                ReadResult.Error("Failed to read nutrition: ${e.message}", e)
+            }
+        }
+
+        /**
+         * Read oxygen saturation records from Health Connect.
+         */
+        suspend fun readOxygenSaturation(
+            startTime: Instant,
+            endTime: Instant,
+        ): ReadResult<OxygenSaturation> {
+            val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
+            return try {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = OxygenSaturationRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                    )
+                val response = client.readRecords(request)
+                ReadResult.Success(
+                    response.records.map { record ->
+                        HealthConnectMapper.mapOxygenSaturationRecord(record)
+                    },
+                )
+            } catch (e: SecurityException) {
+                ReadResult.PermissionDenied
+            } catch (e: Exception) {
+                ReadResult.Error("Failed to read oxygen saturation: ${e.message}", e)
+            }
+        }
+
+        /**
+         * Read HRV RMSSD records from Health Connect.
+         */
+        suspend fun readHrv(
+            startTime: Instant,
+            endTime: Instant,
+        ): ReadResult<HrvRecord> {
+            val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
+            return try {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = HeartRateVariabilityRmssdRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                    )
+                val response = client.readRecords(request)
+                ReadResult.Success(
+                    response.records.map { record ->
+                        HealthConnectMapper.mapHrvRecord(record)
+                    },
+                )
+            } catch (e: SecurityException) {
+                ReadResult.PermissionDenied
+            } catch (e: Exception) {
+                ReadResult.Error("Failed to read HRV: ${e.message}", e)
             }
         }
 

@@ -9,8 +9,9 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
@@ -143,6 +144,9 @@ class MainActivity : ComponentActivity() {
                     putExtra(SetupActivity.EXTRA_FORCE_SHOW, true)
                 }
             startActivity(intent)
+        }
+        binding.aboutButton.setOnClickListener {
+            showAboutDialog()
         }
     }
 
@@ -329,6 +333,21 @@ class MainActivity : ComponentActivity() {
         val url = if (openSettingsTab) "${runtimeInfo.dashboardUrl}#settings" else runtimeInfo.dashboardUrl
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         startActivity(intent)
+    }
+
+    private fun showAboutDialog() {
+        val versionName =
+            runCatching {
+                packageManager.getPackageInfo(packageName, 0).versionName
+            }.getOrDefault("unknown")
+
+        AlertDialog.Builder(this)
+            .setTitle(R.string.about_title)
+            .setMessage(getString(R.string.about_message, versionName))
+            .setNegativeButton(R.string.about_action_close, null)
+            .setPositiveButton(R.string.about_action_open_github) { _, _ ->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(getString(R.string.about_github_url))))
+            }.show()
     }
 
     private suspend fun updateEnvironmentWarnings() {

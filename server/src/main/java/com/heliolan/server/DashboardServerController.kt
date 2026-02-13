@@ -13,7 +13,9 @@ import com.heliolan.sync.scheduler.SyncScheduler
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.ApplicationEngine
+import io.ktor.server.engine.applicationEngineEnvironment
 import io.ktor.server.engine.embeddedServer
+import io.ktor.server.engine.sslConnector
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Clock
@@ -48,6 +50,7 @@ class KtorDashboardServerController
         private val loginAttemptTracker: LoginAttemptTracker,
         private val networkSecurityValidator: NetworkSecurityValidator,
         private val lanAddressResolver: LanAddressResolver,
+        private val tlsCertificateManager: TlsCertificateManager,
         private val config: DashboardServerConfig,
         private val clock: Clock,
         private val zoneId: ZoneId,
@@ -71,44 +74,100 @@ class KtorDashboardServerController
                 val localIpAddress = lanAddressResolver.resolveLocalIpAddress()
                 var lastError: Throwable? = null
 
-                for (port in resolvePortCandidates(requestedConfig)) {
+                val portCandidates =
+                    if (requestedConfig.tls.enabled) {
+                        linkedSetOf(
+                            requestedConfig.tls.preferredPort,
+                            *requestedConfig.tls.fallbackPorts.toList().toTypedArray(),
+                        ).toList()
+                    } else {
+                        resolvePortCandidates(requestedConfig)
+                    }
+
+                for (port in portCandidates) {
                     val candidateClientTracker = ConnectedClientTracker(clock)
                     val candidateRateLimiter =
                         ApiRateLimiter(
                             maxRequestsPerMinute = requestedConfig.maxRequestsPerMinutePerIp,
                             clock = clock,
                         )
+                    val tlsConfig = requestedConfig.tls
                     val candidateEngine =
-                        embeddedServer(
-                            factory = CIO,
-                            host = requestedConfig.bindHost,
-                            port = port,
-                        ) {
-                            configureDashboardApplication(
-                                context = appContext,
-                                healthRepository = healthRepository,
-                                syncScheduler = syncScheduler,
-                                syncEngine = syncEngine,
-                                permissionManager = permissionManager,
-                                exportEngine = exportEngine,
-                                config = requestedConfig,
-                                rateLimiter = candidateRateLimiter,
-                                clientTracker = candidateClientTracker,
-                                sessionManager = sessionManager,
-                                securitySettingsManager = securitySettingsManager,
-                                loginAttemptTracker = loginAttemptTracker,
-                                networkSecurityValidator = networkSecurityValidator,
-                                localIpAddressProvider = { lanAddressResolver.resolveLocalIpAddress() },
-                                runtimeInfoProvider = { getRuntimeInfo() },
-                                clock = clock,
-                                zoneId = zoneId,
-                            )
+                        if (tlsConfig.enabled) {
+                            val keyStore = tlsCertificateManager.loadOrCreateKeyStore(tlsConfig, localIpAddress)
+                            val keyStoreFile = tlsCertificateManager.resolveKeyStoreFile(tlsConfig)
+                            val environment =
+                                applicationEngineEnvironment {
+                                    sslConnector(
+                                        keyStore = keyStore,
+                                        keyAlias = tlsConfig.keyAlias,
+                                        keyStorePassword = { tlsConfig.keyStorePassword.toCharArray() },
+                                        privateKeyPassword = { tlsConfig.privateKeyPassword.toCharArray() },
+                                    ) {
+                                        host = requestedConfig.bindHost
+                                        this.port = port
+                                        keyStorePath = keyStoreFile
+                                    }
+                                    module {
+                                        configureDashboardApplication(
+                                            context = appContext,
+                                            healthRepository = healthRepository,
+                                            syncScheduler = syncScheduler,
+                                            syncEngine = syncEngine,
+                                            permissionManager = permissionManager,
+                                            exportEngine = exportEngine,
+                                            config = requestedConfig,
+                                            rateLimiter = candidateRateLimiter,
+                                            clientTracker = candidateClientTracker,
+                                            sessionManager = sessionManager,
+                                            securitySettingsManager = securitySettingsManager,
+                                            loginAttemptTracker = loginAttemptTracker,
+                                            networkSecurityValidator = networkSecurityValidator,
+                                            localIpAddressProvider = { lanAddressResolver.resolveLocalIpAddress() },
+                                            runtimeInfoProvider = { getRuntimeInfo() },
+                                            clock = clock,
+                                            zoneId = zoneId,
+                                        )
+                                    }
+                                }
+                            embeddedServer(CIO, environment)
+                        } else {
+                            embeddedServer(
+                                factory = CIO,
+                                host = requestedConfig.bindHost,
+                                port = port,
+                            ) {
+                                configureDashboardApplication(
+                                    context = appContext,
+                                    healthRepository = healthRepository,
+                                    syncScheduler = syncScheduler,
+                                    syncEngine = syncEngine,
+                                    permissionManager = permissionManager,
+                                    exportEngine = exportEngine,
+                                    config = requestedConfig,
+                                    rateLimiter = candidateRateLimiter,
+                                    clientTracker = candidateClientTracker,
+                                    sessionManager = sessionManager,
+                                    securitySettingsManager = securitySettingsManager,
+                                    loginAttemptTracker = loginAttemptTracker,
+                                    networkSecurityValidator = networkSecurityValidator,
+                                    localIpAddressProvider = { lanAddressResolver.resolveLocalIpAddress() },
+                                    runtimeInfoProvider = { getRuntimeInfo() },
+                                    clock = clock,
+                                    zoneId = zoneId,
+                                )
+                            }
                         }
 
                     try {
                         candidateEngine.start(wait = false)
                         val startedAt = clock.instant()
-                        val url = buildDashboardUrl(localIpAddress, port)
+                        val url =
+                            buildDashboardUrl(
+                                localIpAddress = localIpAddress,
+                                port = port,
+                                tlsEnabled = requestedConfig.tls.enabled,
+                            )
                         synchronized(stateLock) {
                             engine = candidateEngine
                             clientTracker = candidateClientTracker
@@ -119,6 +178,7 @@ class KtorDashboardServerController
                                     startedAt = startedAt,
                                     dashboardUrl = url,
                                     localIpAddress = localIpAddress,
+                                    isTlsEnabled = requestedConfig.tls.enabled,
                                     connectedClients = 0,
                                 )
                         }
@@ -168,7 +228,12 @@ class KtorDashboardServerController
             synchronized(stateLock) {
                 val current = runtimeInfo ?: return null
                 val refreshedIp = lanAddressResolver.resolveLocalIpAddress()
-                val refreshedUrl = buildDashboardUrl(refreshedIp, current.port)
+                val refreshedUrl =
+                    buildDashboardUrl(
+                        localIpAddress = refreshedIp,
+                        port = current.port,
+                        tlsEnabled = current.isTlsEnabled,
+                    )
                 val refreshedClients = clientTracker.getActiveClientCount()
                 if (
                     refreshedIp != current.localIpAddress ||
@@ -189,5 +254,9 @@ class KtorDashboardServerController
         private fun buildDashboardUrl(
             localIpAddress: String,
             port: Int,
-        ): String = "http://$localIpAddress:$port/dashboard/"
+            tlsEnabled: Boolean,
+        ): String {
+            val scheme = if (tlsEnabled) "https" else "http"
+            return "$scheme://$localIpAddress:$port/dashboard/"
+        }
     }

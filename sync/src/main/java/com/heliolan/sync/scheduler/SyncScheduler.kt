@@ -3,6 +3,7 @@ package com.heliolan.sync.scheduler
 import com.heliolan.sync.engine.AggregationEngine
 import com.heliolan.sync.engine.SyncEngine
 import com.heliolan.sync.model.SyncResult
+import com.heliolan.sync.model.SyncTrigger
 import com.heliolan.sync.model.SyncWindowMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,17 +29,27 @@ class SyncScheduler
         private var periodicSyncJob: Job? = null
 
         fun onAppForeground() {
-            triggerSyncNow()
+            triggerAutomaticSync()
         }
 
         fun triggerSyncNow(windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS) {
             schedulerScope.launch {
-                syncEngine.syncAll(windowMode)
+                syncEngine.syncAll(windowMode = windowMode, trigger = SyncTrigger.USER)
+            }
+        }
+
+        fun triggerAutomaticSync(windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS) {
+            schedulerScope.launch {
+                syncEngine.syncAll(windowMode = windowMode, trigger = SyncTrigger.AUTOMATIC)
             }
         }
 
         suspend fun syncNow(windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS): SyncResult {
-            return syncEngine.syncAll(windowMode)
+            return syncEngine.syncAll(windowMode = windowMode, trigger = SyncTrigger.USER)
+        }
+
+        suspend fun syncAutomatic(windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS): SyncResult {
+            return syncEngine.syncAll(windowMode = windowMode, trigger = SyncTrigger.AUTOMATIC)
         }
 
         suspend fun rebuildAllAggregates() {
@@ -51,7 +62,7 @@ class SyncScheduler
                 schedulerScope.launch {
                     while (isActive) {
                         delay(syncEngine.config.periodicSyncMinutes * 60_000L)
-                        syncEngine.syncAll()
+                        syncAutomatic()
                     }
                 }
         }

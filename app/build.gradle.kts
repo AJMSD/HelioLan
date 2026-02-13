@@ -6,6 +6,29 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+val releaseStoreFilePathProvider =
+    providers
+        .gradleProperty("HELIOLAN_RELEASE_STORE_FILE")
+        .orElse(providers.environmentVariable("HELIOLAN_RELEASE_STORE_FILE"))
+val releaseStorePasswordProvider =
+    providers
+        .gradleProperty("HELIOLAN_RELEASE_STORE_PASSWORD")
+        .orElse(providers.environmentVariable("HELIOLAN_RELEASE_STORE_PASSWORD"))
+val releaseKeyAliasProvider =
+    providers
+        .gradleProperty("HELIOLAN_RELEASE_KEY_ALIAS")
+        .orElse(providers.environmentVariable("HELIOLAN_RELEASE_KEY_ALIAS"))
+val releaseKeyPasswordProvider =
+    providers
+        .gradleProperty("HELIOLAN_RELEASE_KEY_PASSWORD")
+        .orElse(providers.environmentVariable("HELIOLAN_RELEASE_KEY_PASSWORD"))
+
+val releaseSigningConfigured =
+    !releaseStoreFilePathProvider.orNull.isNullOrBlank() &&
+        !releaseStorePasswordProvider.orNull.isNullOrBlank() &&
+        !releaseKeyAliasProvider.orNull.isNullOrBlank() &&
+        !releaseKeyPasswordProvider.orNull.isNullOrBlank()
+
 android {
     namespace = "com.heliolan.app"
     compileSdk = libs.versions.compileSdk.get().toInt()
@@ -24,10 +47,26 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            if (releaseSigningConfigured) {
+                storeFile = rootProject.file(releaseStoreFilePathProvider.get())
+                storePassword = releaseStorePasswordProvider.get()
+                keyAlias = releaseKeyAliasProvider.get()
+                keyPassword = releaseKeyPasswordProvider.get()
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -80,6 +119,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.splash)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.material)
 
     // Hilt
@@ -105,7 +145,11 @@ dependencies {
     testImplementation(libs.turbine)
 
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.espresso.core)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.room.runtime)
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.truth)
     androidTestImplementation(libs.mockk.android)
 }

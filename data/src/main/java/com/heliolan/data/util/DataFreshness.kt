@@ -11,6 +11,12 @@ object RecordType {
     const val SLEEP = "sleep"
     const val STEPS = "steps"
     const val RESTING_HR = "resting_hr"
+    const val ACTIVE_CALORIES = "active_calories"
+    const val DISTANCE = "distance"
+    const val TOTAL_CALORIES = "total_calories"
+    const val NUTRITION = "nutrition"
+    const val OXYGEN_SATURATION = "oxygen_saturation"
+    const val HRV = "hrv"
 }
 
 /**

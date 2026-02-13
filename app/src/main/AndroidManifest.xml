@@ -16,6 +16,10 @@
     <uses-permission android:name="android.permission.health.READ_SLEEP" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_RESTING_HEART_RATE" />
+    <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_DISTANCE" />
+    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />
+    <uses-permission android:name="android.permission.health.READ_NUTRITION" />
     <uses-permission android:name="android.permission.health.READ_HEART_RATE_VARIABILITY" />
     <uses-permission android:name="android.permission.health.READ_OXYGEN_SATURATION" />
     <uses-permission android:name="android.permission.health.READ_RESPIRATORY_RATE" />
@@ -28,7 +32,9 @@
         android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.HelioLAN"
         android:enableOnBackInvokedCallback="true"
@@ -38,6 +44,12 @@
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
+            android:theme="@style/Theme.HelioLAN.Splash" />
+
+        <!-- Setup Activity -->
+        <activity
+            android:name=".ui.setup.SetupActivity"
+            android:exported="true"
             android:theme="@style/Theme.HelioLAN.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -45,18 +57,13 @@
             </intent-filter>
         </activity>
 
-        <!-- Setup Activity -->
-        <activity
-            android:name=".ui.setup.SetupActivity"
-            android:exported="false"
-            android:theme="@style/Theme.HelioLAN" />
-
         <!-- Dashboard Foreground Service -->
         <service
             android:name=".service.DashboardForegroundService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse">
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="true">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="local_health_dashboard" />

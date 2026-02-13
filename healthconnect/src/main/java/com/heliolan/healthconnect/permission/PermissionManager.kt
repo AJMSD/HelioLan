@@ -7,11 +7,16 @@ import androidx.activity.result.contract.ActivityResultContract
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
+import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
+import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.OxygenSaturationRecord
 import androidx.health.connect.client.records.RestingHeartRateRecord
 import androidx.health.connect.client.records.SleepSessionRecord
 import androidx.health.connect.client.records.StepsRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
 import com.heliolan.healthconnect.model.HealthConnectAvailability
 import com.heliolan.healthconnect.model.PermissionState
 import com.heliolan.healthconnect.model.PermissionStatus
@@ -79,6 +84,11 @@ class PermissionManager
                         sleep = PermissionStatus.UNAVAILABLE,
                         steps = PermissionStatus.UNAVAILABLE,
                         restingHeartRate = PermissionStatus.UNAVAILABLE,
+                        activeCalories = PermissionStatus.UNAVAILABLE,
+                        distance = PermissionStatus.UNAVAILABLE,
+                        totalCalories = PermissionStatus.UNAVAILABLE,
+                        nutrition = PermissionStatus.UNAVAILABLE,
+                        oxygenSaturation = PermissionStatus.UNAVAILABLE,
                         heartRateVariability = PermissionStatus.UNAVAILABLE,
                         historyPermission = PermissionStatus.UNAVAILABLE,
                     )
@@ -106,6 +116,31 @@ class PermissionManager
                         grantedPermissions,
                         HealthPermission.getReadPermission(RestingHeartRateRecord::class),
                     ),
+                activeCalories =
+                    checkPermissionStatus(
+                        grantedPermissions,
+                        HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+                    ),
+                distance =
+                    checkPermissionStatus(
+                        grantedPermissions,
+                        HealthPermission.getReadPermission(DistanceRecord::class),
+                    ),
+                totalCalories =
+                    checkPermissionStatus(
+                        grantedPermissions,
+                        HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+                    ),
+                nutrition =
+                    checkPermissionStatus(
+                        grantedPermissions,
+                        HealthPermission.getReadPermission(NutritionRecord::class),
+                    ),
+                oxygenSaturation =
+                    checkPermissionStatus(
+                        grantedPermissions,
+                        HealthPermission.getReadPermission(OxygenSaturationRecord::class),
+                    ),
                 heartRateVariability =
                     checkPermissionStatus(
                         grantedPermissions,
@@ -124,6 +159,11 @@ class PermissionManager
                 HealthPermission.getReadPermission(SleepSessionRecord::class),
                 HealthPermission.getReadPermission(StepsRecord::class),
                 HealthPermission.getReadPermission(RestingHeartRateRecord::class),
+                HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
+                HealthPermission.getReadPermission(DistanceRecord::class),
+                HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
+                HealthPermission.getReadPermission(NutritionRecord::class),
+                HealthPermission.getReadPermission(OxygenSaturationRecord::class),
                 HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
             )
         }

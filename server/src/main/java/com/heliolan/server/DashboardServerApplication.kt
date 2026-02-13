@@ -2,12 +2,18 @@ package com.heliolan.server
 
 import android.content.Context
 import android.os.Build
+import com.heliolan.data.entity.ActiveCaloriesBurned
 import com.heliolan.data.entity.DailyAggregate
+import com.heliolan.data.entity.DistanceRecord
 import com.heliolan.data.entity.HeartRateSample
+import com.heliolan.data.entity.HrvRecord
+import com.heliolan.data.entity.NutritionRecord
+import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
 import com.heliolan.data.entity.SyncCursor
+import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.repository.HealthRepository
 import com.heliolan.data.util.DataFreshness
 import com.heliolan.data.util.RecordType
@@ -59,7 +65,6 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import java.io.FileNotFoundException
 import java.net.NetworkInterface
@@ -448,6 +453,12 @@ fun Application.configureDashboardApplication(
                                 RecordType.HEART_RATE,
                                 RecordType.SLEEP,
                                 RecordType.RESTING_HR,
+                                RecordType.ACTIVE_CALORIES,
+                                RecordType.DISTANCE,
+                                RecordType.TOTAL_CALORIES,
+                                RecordType.NUTRITION,
+                                RecordType.OXYGEN_SATURATION,
+                                RecordType.HRV,
                             ),
                         clock = clock,
                     )
@@ -463,6 +474,15 @@ fun Application.configureDashboardApplication(
                 val latestHeartRate = healthRepository.getLatestHeartRate().first()
                 val latestSleep = healthRepository.getLatestSleepSession().first()
                 val latestRestingHeartRate = healthRepository.getLatestRestingHeartRate().first()
+                val latestActiveCalories = healthRepository.getLatestActiveCaloriesBurned().first()
+                val activeCaloriesToday = healthRepository.getTotalActiveCalories(today, today).first()
+                val latestDistance = healthRepository.getLatestDistanceRecord().first()
+                val distanceTodayMeters = healthRepository.getTotalDistanceMeters(dayStart, dayEnd).first()
+                val latestTotalCalories = healthRepository.getLatestTotalCaloriesBurned().first()
+                val totalCaloriesToday = healthRepository.getTotalCaloriesBurned(dayStart, dayEnd).first()
+                val latestNutrition = healthRepository.getLatestNutritionRecord().first()
+                val latestOxygenSaturation = healthRepository.getLatestOxygenSaturation().first()
+                val latestHrv = healthRepository.getLatestHrvRecord().first()
                 val syncStatus = syncEngine.getSyncStatus()
 
                 call.respondApiSuccess(
@@ -473,6 +493,15 @@ fun Application.configureDashboardApplication(
                             put("latest_heart_rate", latestHeartRate?.toJson() ?: JsonNull)
                             put("latest_sleep", latestSleep?.toJson() ?: JsonNull)
                             put("latest_resting_hr", latestRestingHeartRate?.toJson() ?: JsonNull)
+                            put("active_calories_today", activeCaloriesToday)
+                            put("latest_active_calories", latestActiveCalories?.toJson() ?: JsonNull)
+                            put("distance_today_meters", distanceTodayMeters)
+                            put("latest_distance", latestDistance?.toJson() ?: JsonNull)
+                            put("total_calories_today_kcal", totalCaloriesToday)
+                            put("latest_total_calories", latestTotalCalories?.toJson() ?: JsonNull)
+                            put("latest_nutrition", latestNutrition?.toJson() ?: JsonNull)
+                            put("latest_oxygen_saturation", latestOxygenSaturation?.toJson() ?: JsonNull)
+                            put("latest_hrv", latestHrv?.toJson() ?: JsonNull)
                         },
                     clock = clock,
                     meta = {
@@ -661,12 +690,285 @@ fun Application.configureDashboardApplication(
                 )
             }
 
-            get("/hrv") {
+            get("/calories/active") {
+                val range = call.parseDateRange(clock = clock, zoneId = zoneId) ?: return@get
+                val pagination = call.parsePagination(config) ?: return@get
+                val (fingerprint, lastModified) =
+                    syncEngine.conditionalFingerprint(
+                        recordTypes = setOf(RecordType.ACTIVE_CALORIES),
+                        clock = clock,
+                    )
+                val etagSeed =
+                    listOf(
+                        "active_calories",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
+                if (call.respondNotModifiedIfMatch(seed = etagSeed, lastModified = lastModified)) {
+                    return@get
+                }
+
+                val records =
+                    healthRepository.getActiveCaloriesBurned(
+                        startDate = range.start,
+                        endDate = range.end,
+                        limit = pagination.limit,
+                        offset = pagination.offset,
+                    ).first()
+                val totalCalories =
+                    healthRepository.getTotalActiveCalories(
+                        startDate = range.start,
+                        endDate = range.end,
+                    ).first()
+
                 call.respondApiSuccess(
-                    data = buildJsonArray { },
+                    data = JsonArray(records.map { it.toJson() }),
                     clock = clock,
                     meta = {
-                        put("note", "HRV export/read is deferred until schema v1.1.")
+                        put("range_start", range.start.toString())
+                        put("range_end", range.end.toString())
+                        put("total_calories", totalCalories)
+                        put("pagination", pagination.toJson(returnedCount = records.size))
+                    },
+                )
+            }
+
+            get("/distance") {
+                val range = call.parseInstantRange(zoneId = zoneId, clock = clock) ?: return@get
+                val pagination = call.parsePagination(config) ?: return@get
+                val (fingerprint, lastModified) =
+                    syncEngine.conditionalFingerprint(
+                        recordTypes = setOf(RecordType.DISTANCE),
+                        clock = clock,
+                    )
+                val etagSeed =
+                    listOf(
+                        "distance",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
+                if (call.respondNotModifiedIfMatch(seed = etagSeed, lastModified = lastModified)) {
+                    return@get
+                }
+
+                val records =
+                    healthRepository.getDistanceRecords(
+                        startTime = range.start,
+                        endTime = range.end,
+                        limit = pagination.limit,
+                        offset = pagination.offset,
+                    ).first()
+                val totalMeters =
+                    healthRepository.getTotalDistanceMeters(
+                        startTime = range.start,
+                        endTime = range.end,
+                    ).first()
+
+                call.respondApiSuccess(
+                    data = JsonArray(records.map { it.toJson() }),
+                    clock = clock,
+                    meta = {
+                        put("range_start", range.start.toString())
+                        put("range_end", range.end.toString())
+                        put("total_distance_meters", totalMeters)
+                        put("pagination", pagination.toJson(returnedCount = records.size))
+                    },
+                )
+            }
+
+            get("/calories/total") {
+                val range = call.parseInstantRange(zoneId = zoneId, clock = clock) ?: return@get
+                val pagination = call.parsePagination(config) ?: return@get
+                val (fingerprint, lastModified) =
+                    syncEngine.conditionalFingerprint(
+                        recordTypes = setOf(RecordType.TOTAL_CALORIES),
+                        clock = clock,
+                    )
+                val etagSeed =
+                    listOf(
+                        "total_calories",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
+                if (call.respondNotModifiedIfMatch(seed = etagSeed, lastModified = lastModified)) {
+                    return@get
+                }
+
+                val records =
+                    healthRepository.getTotalCaloriesBurnedRecords(
+                        startTime = range.start,
+                        endTime = range.end,
+                        limit = pagination.limit,
+                        offset = pagination.offset,
+                    ).first()
+                val totalCalories =
+                    healthRepository.getTotalCaloriesBurned(
+                        startTime = range.start,
+                        endTime = range.end,
+                    ).first()
+
+                call.respondApiSuccess(
+                    data = JsonArray(records.map { it.toJson() }),
+                    clock = clock,
+                    meta = {
+                        put("range_start", range.start.toString())
+                        put("range_end", range.end.toString())
+                        put("total_calories_kcal", totalCalories)
+                        put("pagination", pagination.toJson(returnedCount = records.size))
+                    },
+                )
+            }
+
+            get("/nutrition") {
+                val range = call.parseInstantRange(zoneId = zoneId, clock = clock) ?: return@get
+                val pagination = call.parsePagination(config) ?: return@get
+                val (fingerprint, lastModified) =
+                    syncEngine.conditionalFingerprint(
+                        recordTypes = setOf(RecordType.NUTRITION),
+                        clock = clock,
+                    )
+                val etagSeed =
+                    listOf(
+                        "nutrition",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
+                if (call.respondNotModifiedIfMatch(seed = etagSeed, lastModified = lastModified)) {
+                    return@get
+                }
+
+                val records =
+                    healthRepository.getNutritionRecords(
+                        startTime = range.start,
+                        endTime = range.end,
+                        limit = pagination.limit,
+                        offset = pagination.offset,
+                    ).first()
+                val calories = records.mapNotNull { it.energyKcal }.sum()
+                val protein = records.mapNotNull { it.proteinGrams }.sum()
+                val carbs = records.mapNotNull { it.carbsGrams }.sum()
+                val fat = records.mapNotNull { it.fatGrams }.sum()
+
+                call.respondApiSuccess(
+                    data = JsonArray(records.map { it.toJson() }),
+                    clock = clock,
+                    meta = {
+                        put("range_start", range.start.toString())
+                        put("range_end", range.end.toString())
+                        put(
+                            "totals",
+                            buildJsonObject {
+                                put("calories_kcal", calories)
+                                put("protein_g", protein)
+                                put("carbs_g", carbs)
+                                put("fat_g", fat)
+                            },
+                        )
+                        put("pagination", pagination.toJson(returnedCount = records.size))
+                    },
+                )
+            }
+
+            get("/oxygen-saturation") {
+                val range = call.parseInstantRange(zoneId = zoneId, clock = clock) ?: return@get
+                val pagination = call.parsePagination(config) ?: return@get
+                val (fingerprint, lastModified) =
+                    syncEngine.conditionalFingerprint(
+                        recordTypes = setOf(RecordType.OXYGEN_SATURATION),
+                        clock = clock,
+                    )
+                val etagSeed =
+                    listOf(
+                        "oxygen_saturation",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
+                if (call.respondNotModifiedIfMatch(seed = etagSeed, lastModified = lastModified)) {
+                    return@get
+                }
+
+                val records =
+                    healthRepository.getOxygenSaturationRecords(
+                        startTime = range.start,
+                        endTime = range.end,
+                        limit = pagination.limit,
+                        offset = pagination.offset,
+                    ).first()
+                val average =
+                    healthRepository.getAverageOxygenSaturation(
+                        startTime = range.start,
+                        endTime = range.end,
+                    ).first()
+
+                call.respondApiSuccess(
+                    data = JsonArray(records.map { it.toJson() }),
+                    clock = clock,
+                    meta = {
+                        put("range_start", range.start.toString())
+                        put("range_end", range.end.toString())
+                        put("average_percentage", average?.let { JsonPrimitive(it) } ?: JsonNull)
+                        put("pagination", pagination.toJson(returnedCount = records.size))
+                    },
+                )
+            }
+
+            get("/hrv") {
+                val range = call.parseInstantRange(zoneId = zoneId, clock = clock) ?: return@get
+                val pagination = call.parsePagination(config) ?: return@get
+                val (fingerprint, lastModified) =
+                    syncEngine.conditionalFingerprint(
+                        recordTypes = setOf(RecordType.HRV),
+                        clock = clock,
+                    )
+                val etagSeed =
+                    listOf(
+                        "hrv",
+                        range.start,
+                        range.end,
+                        pagination.limit,
+                        pagination.offset,
+                        fingerprint,
+                    ).joinToString(":")
+                if (call.respondNotModifiedIfMatch(seed = etagSeed, lastModified = lastModified)) {
+                    return@get
+                }
+
+                val records =
+                    healthRepository.getHrvRecords(
+                        startTime = range.start,
+                        endTime = range.end,
+                        limit = pagination.limit,
+                        offset = pagination.offset,
+                    ).first()
+                val avgRmssd =
+                    healthRepository.getAverageHrvRmssd(
+                        startTime = range.start,
+                        endTime = range.end,
+                    ).first()
+
+                call.respondApiSuccess(
+                    data = JsonArray(records.map { it.toJson() }),
+                    clock = clock,
+                    meta = {
+                        put("range_start", range.start.toString())
+                        put("range_end", range.end.toString())
+                        put("average_rmssd", avgRmssd?.let { JsonPrimitive(it) } ?: JsonNull)
+                        put("pagination", pagination.toJson(returnedCount = records.size))
                     },
                 )
             }
@@ -721,7 +1023,10 @@ fun Application.configureDashboardApplication(
             }
 
             post("/sync/trigger") {
-                syncScheduler.triggerSyncNow()
+                when (call.request.queryParameters["trigger"]?.lowercase()) {
+                    "automatic" -> syncScheduler.triggerAutomaticSync()
+                    else -> syncScheduler.triggerSyncNow()
+                }
                 call.respondApiSuccess(
                     data =
                         buildJsonObject {
@@ -742,6 +1047,11 @@ fun Application.configureDashboardApplication(
                             put("sleep", permissionState.sleep.name.lowercase())
                             put("steps", permissionState.steps.name.lowercase())
                             put("resting_heart_rate", permissionState.restingHeartRate.name.lowercase())
+                            put("active_calories", permissionState.activeCalories.name.lowercase())
+                            put("distance", permissionState.distance.name.lowercase())
+                            put("total_calories", permissionState.totalCalories.name.lowercase())
+                            put("nutrition", permissionState.nutrition.name.lowercase())
+                            put("oxygen_saturation", permissionState.oxygenSaturation.name.lowercase())
                             put("heart_rate_variability", permissionState.heartRateVariability.name.lowercase())
                             put("history", permissionState.historyPermission.name.lowercase())
                         },
@@ -761,6 +1071,7 @@ fun Application.configureDashboardApplication(
                             put("port", runtimeInfo?.port ?: 0)
                             put("dashboard_url", runtimeInfo?.dashboardUrl ?: "")
                             put("local_ip_address", runtimeInfo?.localIpAddress ?: "")
+                            put("tls_enabled", runtimeInfo?.isTlsEnabled ?: config.tls.enabled)
                             put("uptime_seconds", uptimeSeconds)
                             put("connected_clients", runtimeInfo?.connectedClients ?: 0)
                             put("phone_name", "${Build.MANUFACTURER} ${Build.MODEL}")
@@ -781,6 +1092,12 @@ private fun supportedRecordTypes(): Set<String> =
         RecordType.SLEEP,
         RecordType.STEPS,
         RecordType.RESTING_HR,
+        RecordType.ACTIVE_CALORIES,
+        RecordType.DISTANCE,
+        RecordType.TOTAL_CALORIES,
+        RecordType.NUTRITION,
+        RecordType.OXYGEN_SATURATION,
+        RecordType.HRV,
     )
 
 internal fun resolveDashboardAssetPath(requestPath: String): String? {
@@ -1031,6 +1348,74 @@ private fun RestingHeartRate.toJson(): JsonObject =
         put("health_connect_id", healthConnectId)
         put("date", date.toString())
         put("bpm", bpm)
+        put("source", source)
+        put("synced_at", syncedAt.toString())
+    }
+
+private fun ActiveCaloriesBurned.toJson(): JsonObject =
+    buildJsonObject {
+        put("id", id)
+        put("health_connect_id", healthConnectId)
+        put("date", date.toString())
+        put("calories", calories)
+        put("source", source)
+        put("synced_at", syncedAt.toString())
+    }
+
+private fun DistanceRecord.toJson(): JsonObject =
+    buildJsonObject {
+        put("id", id)
+        put("health_connect_id", healthConnectId)
+        put("start_time", startTime.toString())
+        put("end_time", endTime.toString())
+        put("distance_meters", distanceMeters)
+        put("source", source)
+        put("synced_at", syncedAt.toString())
+    }
+
+private fun TotalCaloriesBurned.toJson(): JsonObject =
+    buildJsonObject {
+        put("id", id)
+        put("health_connect_id", healthConnectId)
+        put("start_time", startTime.toString())
+        put("end_time", endTime.toString())
+        put("energy_kcal", energyKcal)
+        put("source", source)
+        put("synced_at", syncedAt.toString())
+    }
+
+private fun NutritionRecord.toJson(): JsonObject =
+    buildJsonObject {
+        put("id", id)
+        put("health_connect_id", healthConnectId)
+        put("start_time", startTime.toString())
+        put("end_time", endTime.toString())
+        put("energy_kcal", energyKcal?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("protein_grams", proteinGrams?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("carbs_grams", carbsGrams?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("fat_grams", fatGrams?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("meal_type", mealType?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("nutrients_json", nutrientsJson?.let { JsonPrimitive(it) } ?: JsonNull)
+        put("source", source)
+        put("synced_at", syncedAt.toString())
+    }
+
+private fun OxygenSaturation.toJson(): JsonObject =
+    buildJsonObject {
+        put("id", id)
+        put("health_connect_id", healthConnectId)
+        put("timestamp", timestamp.toString())
+        put("percentage", percentage)
+        put("source", source)
+        put("synced_at", syncedAt.toString())
+    }
+
+private fun HrvRecord.toJson(): JsonObject =
+    buildJsonObject {
+        put("id", id)
+        put("health_connect_id", healthConnectId)
+        put("timestamp", timestamp.toString())
+        put("rmssd", rmssd)
         put("source", source)
         put("synced_at", syncedAt.toString())
     }

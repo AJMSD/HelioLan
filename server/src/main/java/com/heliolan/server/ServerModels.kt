@@ -9,7 +9,19 @@ data class DashboardServerConfig(
     val defaultPageLimit: Int = 500,
     val maxPageLimit: Int = 5000,
     val maxRequestsPerMinutePerIp: Int = 60,
+    val tls: DashboardTlsConfig = DashboardTlsConfig(),
     val security: DashboardSecurityConfig = DashboardSecurityConfig(),
+)
+
+data class DashboardTlsConfig(
+    val enabled: Boolean = false,
+    val preferredPort: Int = 8443,
+    val fallbackPorts: IntRange = 8444..8450,
+    val keyAlias: String = "heliolan_tls",
+    val keyStoreFileName: String = "heliolan-dashboard.jks",
+    val keyStorePassword: String = "changeit",
+    val privateKeyPassword: String = "changeit",
+    val validityDays: Long = 3650,
 )
 
 data class DashboardSecurityConfig(
@@ -28,5 +40,6 @@ data class DashboardServerRuntimeInfo(
     val startedAt: Instant,
     val dashboardUrl: String,
     val localIpAddress: String,
+    val isTlsEnabled: Boolean,
     val connectedClients: Int,
 )

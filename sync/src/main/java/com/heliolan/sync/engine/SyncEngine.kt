@@ -1,16 +1,28 @@
 package com.heliolan.sync.engine
 
+import com.heliolan.data.dao.ActiveCaloriesBurnedDao
+import com.heliolan.data.dao.DistanceRecordDao
 import com.heliolan.data.dao.HeartRateSampleDao
+import com.heliolan.data.dao.HrvRecordDao
+import com.heliolan.data.dao.NutritionRecordDao
+import com.heliolan.data.dao.OxygenSaturationDao
 import com.heliolan.data.dao.RestingHeartRateDao
 import com.heliolan.data.dao.SleepSessionDao
 import com.heliolan.data.dao.SleepStageDao
 import com.heliolan.data.dao.StepsRecordDao
 import com.heliolan.data.dao.SyncCursorDao
+import com.heliolan.data.dao.TotalCaloriesBurnedDao
+import com.heliolan.data.entity.ActiveCaloriesBurned
+import com.heliolan.data.entity.DistanceRecord
 import com.heliolan.data.entity.HeartRateSample
+import com.heliolan.data.entity.HrvRecord
+import com.heliolan.data.entity.NutritionRecord
+import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
 import com.heliolan.data.entity.SyncCursor
+import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.util.RecordType
 import com.heliolan.healthconnect.reader.HealthConnectReader
 import com.heliolan.healthconnect.reader.ReadResult
@@ -22,6 +34,7 @@ import com.heliolan.sync.model.SyncProgress
 import com.heliolan.sync.model.SyncProgressState
 import com.heliolan.sync.model.SyncResult
 import com.heliolan.sync.model.SyncSummary
+import com.heliolan.sync.model.SyncTrigger
 import com.heliolan.sync.model.SyncWindowMode
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -54,6 +67,12 @@ class SyncEngine
         private val sleepStageDao: SleepStageDao,
         private val stepsRecordDao: StepsRecordDao,
         private val restingHeartRateDao: RestingHeartRateDao,
+        private val activeCaloriesBurnedDao: ActiveCaloriesBurnedDao,
+        private val distanceRecordDao: DistanceRecordDao,
+        private val totalCaloriesBurnedDao: TotalCaloriesBurnedDao,
+        private val nutritionRecordDao: NutritionRecordDao,
+        private val oxygenSaturationDao: OxygenSaturationDao,
+        private val hrvRecordDao: HrvRecordDao,
         private val syncCursorDao: SyncCursorDao,
     ) {
         companion object {
@@ -63,6 +82,12 @@ class SyncEngine
                     RecordType.SLEEP,
                     RecordType.STEPS,
                     RecordType.RESTING_HR,
+                    RecordType.ACTIVE_CALORIES,
+                    RecordType.DISTANCE,
+                    RecordType.TOTAL_CALORIES,
+                    RecordType.NUTRITION,
+                    RecordType.OXYGEN_SATURATION,
+                    RecordType.HRV,
                 )
         }
 
@@ -76,30 +101,37 @@ class SyncEngine
 
         suspend fun getSyncStatus(): List<SyncCursor> = syncCursorDao.getAllCursors()
 
-        suspend fun syncAll(windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS): SyncResult {
+        suspend fun syncAll(
+            windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS,
+            trigger: SyncTrigger = SyncTrigger.AUTOMATIC,
+        ): SyncResult {
             return syncInternal(
                 recordTypes = SUPPORTED_RECORD_TYPES,
                 windowMode = windowMode,
+                trigger = trigger,
             )
         }
 
         suspend fun syncRecordType(
             recordType: String,
             windowMode: SyncWindowMode = SyncWindowMode.LAST_30_DAYS,
+            trigger: SyncTrigger = SyncTrigger.AUTOMATIC,
         ): SyncResult {
             return syncInternal(
                 recordTypes = listOf(recordType),
                 windowMode = windowMode,
+                trigger = trigger,
             )
         }
 
         private suspend fun syncInternal(
             recordTypes: List<String>,
             windowMode: SyncWindowMode,
+            trigger: SyncTrigger,
         ): SyncResult {
             return syncMutex.withLock {
                 val startedAt = Instant.now()
-                if (isDebounced(startedAt)) {
+                if (trigger != SyncTrigger.USER && isDebounced(startedAt)) {
                     return@withLock SyncResult.Failure(
                         SyncError(
                             recordType = null,
@@ -212,6 +244,72 @@ class SyncEngine
                         readResult = healthConnectReader.readRestingHeartRate(startTime, endTime),
                     ) { records ->
                         persistRestingHeartRate(records)
+                    }
+                }
+
+                RecordType.ACTIVE_CALORIES -> {
+                    processReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        existingCursor = cursor,
+                        readResult = healthConnectReader.readActiveCaloriesBurned(startTime, endTime),
+                    ) { records ->
+                        persistActiveCalories(records)
+                    }
+                }
+
+                RecordType.DISTANCE -> {
+                    processReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        existingCursor = cursor,
+                        readResult = healthConnectReader.readDistance(startTime, endTime),
+                    ) { records ->
+                        persistDistance(records)
+                    }
+                }
+
+                RecordType.TOTAL_CALORIES -> {
+                    processReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        existingCursor = cursor,
+                        readResult = healthConnectReader.readTotalCaloriesBurned(startTime, endTime),
+                    ) { records ->
+                        persistTotalCalories(records)
+                    }
+                }
+
+                RecordType.NUTRITION -> {
+                    processReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        existingCursor = cursor,
+                        readResult = healthConnectReader.readNutrition(startTime, endTime),
+                    ) { records ->
+                        persistNutrition(records)
+                    }
+                }
+
+                RecordType.OXYGEN_SATURATION -> {
+                    processReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        existingCursor = cursor,
+                        readResult = healthConnectReader.readOxygenSaturation(startTime, endTime),
+                    ) { records ->
+                        persistOxygenSaturation(records)
+                    }
+                }
+
+                RecordType.HRV -> {
+                    processReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        existingCursor = cursor,
+                        readResult = healthConnectReader.readHrv(startTime, endTime),
+                    ) { records ->
+                        persistHrv(records)
                     }
                 }
 
@@ -366,6 +464,84 @@ class SyncEngine
                 stored = unique.size,
                 deduplicated = records.size - unique.size,
                 affectedDates = unique.mapTo(mutableSetOf()) { it.date },
+            )
+        }
+
+        private suspend fun persistActiveCalories(records: List<ActiveCaloriesBurned>): PersistResult {
+            val unique = records.distinctBy { it.healthConnectId }
+            if (unique.isNotEmpty()) {
+                activeCaloriesBurnedDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
+                activeCaloriesBurnedDao.upsert(unique)
+            }
+            return PersistResult(
+                stored = unique.size,
+                deduplicated = records.size - unique.size,
+                affectedDates = unique.mapTo(mutableSetOf()) { it.date },
+            )
+        }
+
+        private suspend fun persistDistance(records: List<DistanceRecord>): PersistResult {
+            val unique = records.distinctBy { it.healthConnectId }
+            if (unique.isNotEmpty()) {
+                distanceRecordDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
+                distanceRecordDao.upsert(unique)
+            }
+            return PersistResult(
+                stored = unique.size,
+                deduplicated = records.size - unique.size,
+                affectedDates = unique.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+            )
+        }
+
+        private suspend fun persistTotalCalories(records: List<TotalCaloriesBurned>): PersistResult {
+            val unique = records.distinctBy { it.healthConnectId }
+            if (unique.isNotEmpty()) {
+                totalCaloriesBurnedDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
+                totalCaloriesBurnedDao.upsert(unique)
+            }
+            return PersistResult(
+                stored = unique.size,
+                deduplicated = records.size - unique.size,
+                affectedDates = unique.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+            )
+        }
+
+        private suspend fun persistNutrition(records: List<NutritionRecord>): PersistResult {
+            val unique = records.distinctBy { it.healthConnectId }
+            if (unique.isNotEmpty()) {
+                nutritionRecordDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
+                nutritionRecordDao.upsert(unique)
+            }
+            return PersistResult(
+                stored = unique.size,
+                deduplicated = records.size - unique.size,
+                affectedDates = unique.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+            )
+        }
+
+        private suspend fun persistOxygenSaturation(records: List<OxygenSaturation>): PersistResult {
+            val unique = records.distinctBy { it.healthConnectId }
+            if (unique.isNotEmpty()) {
+                oxygenSaturationDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
+                oxygenSaturationDao.upsert(unique)
+            }
+            return PersistResult(
+                stored = unique.size,
+                deduplicated = records.size - unique.size,
+                affectedDates = unique.mapTo(mutableSetOf()) { it.timestamp.toLocalDate() },
+            )
+        }
+
+        private suspend fun persistHrv(records: List<HrvRecord>): PersistResult {
+            val unique = records.distinctBy { it.healthConnectId }
+            if (unique.isNotEmpty()) {
+                hrvRecordDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
+                hrvRecordDao.upsert(unique)
+            }
+            return PersistResult(
+                stored = unique.size,
+                deduplicated = records.size - unique.size,
+                affectedDates = unique.mapTo(mutableSetOf()) { it.timestamp.toLocalDate() },
             )
         }
 

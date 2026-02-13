@@ -5,6 +5,7 @@ import com.heliolan.sync.engine.AggregationEngine
 import com.heliolan.sync.engine.SyncEngine
 import com.heliolan.sync.model.SyncResult
 import com.heliolan.sync.model.SyncSummary
+import com.heliolan.sync.model.SyncTrigger
 import com.heliolan.sync.model.SyncWindowMode
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -51,12 +52,52 @@ class SyncSchedulerTest {
                         records = emptyList(),
                     ),
                 )
-            coEvery { syncEngine.syncAll(SyncWindowMode.LAST_30_DAYS) } returns expected
+            coEvery {
+                syncEngine.syncAll(
+                    windowMode = SyncWindowMode.LAST_30_DAYS,
+                    trigger = SyncTrigger.USER,
+                )
+            } returns expected
 
             val result = scheduler.syncNow()
 
             assertThat(result).isEqualTo(expected)
-            coVerify(exactly = 1) { syncEngine.syncAll(SyncWindowMode.LAST_30_DAYS) }
+            coVerify(exactly = 1) {
+                syncEngine.syncAll(
+                    windowMode = SyncWindowMode.LAST_30_DAYS,
+                    trigger = SyncTrigger.USER,
+                )
+            }
+        }
+
+    @Test
+    fun syncAutomatic_delegatesToSyncEngineWithAutomaticTrigger() =
+        runTest {
+            val now = Instant.now()
+            val expected =
+                SyncResult.Success(
+                    SyncSummary(
+                        startedAt = now,
+                        completedAt = now,
+                        records = emptyList(),
+                    ),
+                )
+            coEvery {
+                syncEngine.syncAll(
+                    windowMode = SyncWindowMode.LAST_30_DAYS,
+                    trigger = SyncTrigger.AUTOMATIC,
+                )
+            } returns expected
+
+            val result = scheduler.syncAutomatic()
+
+            assertThat(result).isEqualTo(expected)
+            coVerify(exactly = 1) {
+                syncEngine.syncAll(
+                    windowMode = SyncWindowMode.LAST_30_DAYS,
+                    trigger = SyncTrigger.AUTOMATIC,
+                )
+            }
         }
 
     @Test

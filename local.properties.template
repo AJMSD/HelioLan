@@ -14,3 +14,8 @@ sdk.dir=/path/to/your/Android/SDK
 # ndk.dir=/path/to/your/Android/NDK
 
 ## No secrets should be stored here - this is just for local SDK paths
+## Release signing values should be provided via environment variables or Gradle properties:
+## HELIOLAN_RELEASE_STORE_FILE
+## HELIOLAN_RELEASE_STORE_PASSWORD
+## HELIOLAN_RELEASE_KEY_ALIAS
+## HELIOLAN_RELEASE_KEY_PASSWORD

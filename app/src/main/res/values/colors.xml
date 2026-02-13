@@ -24,6 +24,7 @@
     <color name="md_theme_light_surfaceVariant">#DBE5DD</color>
     <color name="md_theme_light_onSurfaceVariant">#404943</color>
     <color name="md_theme_light_outline">#707973</color>
+    <color name="ic_launcher_background">#006C4C</color>
 
     <!-- Material 3 Dark Theme Colors -->
     <color name="md_theme_dark_primary">#6CDBAC</color>

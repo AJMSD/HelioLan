@@ -8,6 +8,11 @@ enum class HealthRecordType {
     SLEEP,
     STEPS,
     RESTING_HEART_RATE,
+    ACTIVE_CALORIES,
+    DISTANCE,
+    TOTAL_CALORIES,
+    NUTRITION,
+    OXYGEN_SATURATION,
     HEART_RATE_VARIABILITY,
     ;
 
@@ -21,6 +26,11 @@ enum class HealthRecordType {
                 SLEEP -> "android.permission.health.READ_SLEEP"
                 STEPS -> "android.permission.health.READ_STEPS"
                 RESTING_HEART_RATE -> "android.permission.health.READ_RESTING_HEART_RATE"
+                ACTIVE_CALORIES -> "android.permission.health.READ_ACTIVE_CALORIES_BURNED"
+                DISTANCE -> "android.permission.health.READ_DISTANCE"
+                TOTAL_CALORIES -> "android.permission.health.READ_TOTAL_CALORIES_BURNED"
+                NUTRITION -> "android.permission.health.READ_NUTRITION"
+                OXYGEN_SATURATION -> "android.permission.health.READ_OXYGEN_SATURATION"
                 HEART_RATE_VARIABILITY -> "android.permission.health.READ_HEART_RATE_VARIABILITY"
             }
         }
@@ -52,6 +62,11 @@ data class PermissionState(
     val sleep: PermissionStatus,
     val steps: PermissionStatus,
     val restingHeartRate: PermissionStatus,
+    val activeCalories: PermissionStatus,
+    val distance: PermissionStatus,
+    val totalCalories: PermissionStatus,
+    val nutrition: PermissionStatus,
+    val oxygenSaturation: PermissionStatus,
     val heartRateVariability: PermissionStatus,
     val historyPermission: PermissionStatus,
 ) {
@@ -72,6 +87,11 @@ data class PermissionState(
             sleep == PermissionStatus.GRANTED ||
             steps == PermissionStatus.GRANTED ||
             restingHeartRate == PermissionStatus.GRANTED ||
+            activeCalories == PermissionStatus.GRANTED ||
+            distance == PermissionStatus.GRANTED ||
+            totalCalories == PermissionStatus.GRANTED ||
+            nutrition == PermissionStatus.GRANTED ||
+            oxygenSaturation == PermissionStatus.GRANTED ||
             heartRateVariability == PermissionStatus.GRANTED
     }
 }

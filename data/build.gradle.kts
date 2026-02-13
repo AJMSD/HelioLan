@@ -22,6 +22,12 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 dependencies {
@@ -41,10 +47,15 @@ dependencies {
     // SQLCipher (optional encryption)
     implementation(libs.sqlcipher.android)
 
+    // Security (for EncryptedSharedPreferences)
+    implementation(libs.androidx.security.crypto)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.androidx.test.core)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.robolectric)
     testImplementation(libs.truth)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)

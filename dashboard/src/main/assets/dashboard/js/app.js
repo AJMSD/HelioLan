@@ -33,15 +33,20 @@
     var api = global.heliolanApi || new global.HelioApi.ApiClient();
     var u = global.HelioUtils;
     var charts = global.HelioCharts;
-    var views = ["today", "sleep", "cardio", "activity", "settings"];
+    var views = ["today", "sleep", "cardio", "activity", "nutrition", "settings"];
 
     var s = {
         authed: false,
         session: null,
         view: "today",
         prefs: u.loadPreferences(),
-        date: { sleep: u.toDateInputValue(new Date()), cardio: u.toDateInputValue(new Date()) },
-        timer: { ping: null, refresh: null }
+        date: {
+            sleep: u.toDateInputValue(new Date()),
+            cardio: u.toDateInputValue(new Date()),
+            nutrition: u.toDateInputValue(new Date())
+        },
+        timer: { ping: null, todayPoll: null, autoSync: null, viewRefresh: null },
+        rendering: false
     };
 
     var el = {};
@@ -111,6 +116,7 @@
     function showLogin(passcodeConfigured) {
         s.authed = false;
         charts.destroyAll();
+        stopBackgroundUpdates();
         setVisible(el.loginScreen, true);
         setVisible(el.appShell, false);
         setVisible(el.loginForm, passcodeConfigured);
@@ -125,6 +131,7 @@
         setVisible(el.loginScreen, false);
         setVisible(el.appShell, true);
         setAuth("");
+        startBackgroundUpdates();
     }
 
     function setOffline(isOffline) { el.offlineBanner.hidden = !isOffline; }
@@ -160,7 +167,7 @@
                 evt.preventDefault();
                 var reason = link.getAttribute("data-reason") || "";
                 if (reason === "hrv") {
-                    setStatus("HRV ingestion is deferred until schema v1.1.");
+                    setStatus("HRV values depend on source-device support and granted permissions.");
                     return;
                 }
                 if (reason === "resting-hr") {
@@ -185,7 +192,6 @@
                 s.view = parseHash();
                 markNav();
                 await render(true);
-                restartRefresh();
             } else {
                 var configured = sessionPasscodeConfigured(sess);
                 showLogin(configured);
@@ -221,8 +227,10 @@
         el.lastSyncedPill.textContent = "Last synced: " + u.formatRelativeTime(new Date(newest).toISOString());
     }
 
-    async function renderToday(force) {
-        el.viewContainer.innerHTML = skeleton();
+    async function renderToday(force, silent) {
+        if (!silent) {
+            el.viewContainer.innerHTML = skeleton();
+        }
         try {
             var pair = await Promise.all([api.getToday(force), api.getSyncStatus(force)]);
             var today = data(pair[0]) || {};
@@ -234,33 +242,46 @@
             var hr = today.latest_heart_rate;
             var sl = today.latest_sleep;
             var rhr = today.latest_resting_hr;
+            var activeCalories = Number(today.active_calories_today || 0);
+            var distanceMeters = Number(today.distance_today_meters || 0);
+            var totalCalories = Number(today.total_calories_today_kcal || 0);
+            var latestNutrition = today.latest_nutrition;
+            var latestSpO2 = today.latest_oxygen_saturation;
+            var latestHrv = today.latest_hrv;
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Today</p><h3>Live health snapshot</h3></div><div class=\"view-actions\"><button id=\"todayRefresh\" class=\"btn btn-secondary\" type=\"button\">Manual Refresh</button><button id=\"todaySync\" class=\"btn btn-primary\" type=\"button\">Sync Now</button></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Today</p><h3>Live health snapshot</h3></div><div class=\"view-actions\"><button id=\"todaySync\" class=\"btn btn-primary\" type=\"button\">Sync Now</button></div></section>" +
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-4\"><h4>Steps</h4><div class=\"progress-ring\" style=\"--progress:" + pct + ";\"><strong>" + pct + "%</strong></div><p class=\"metric\">" + u.formatNumber(steps) + "</p><p class=\"metric-sub\">Goal: 10,000</p></article>" +
                 "<article class=\"card span-4\"><h4>Latest HR</h4>" + (hr ? "<p class=\"metric\">" + esc(hr.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(u.formatDateTime(hr.timestamp, s.prefs)) + "</p>" : empty("No intraday HR data.")) + "</article>" +
                 "<article class=\"card span-4\"><h4>Sleep</h4>" + (sl ? "<p class=\"metric\">" + esc(u.formatDurationMs(sl.duration_ms)) + "</p><p class=\"metric-sub\">Bed " + esc(u.formatTime(sl.start_time, s.prefs)) + " | Wake " + esc(u.formatTime(sl.end_time, s.prefs)) + "</p>" : empty("No sleep data for this date.")) + "</article>" +
+                "<article class=\"card span-4\"><h4>Active Calories</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(activeCalories))) + " kcal</p><p class=\"metric-sub\">Today</p></article>" +
+                "<article class=\"card span-4\"><h4>Distance</h4><p class=\"metric\">" + esc(u.formatDistanceMeters(distanceMeters)) + "</p><p class=\"metric-sub\">Today total</p></article>" +
+                "<article class=\"card span-4\"><h4>Total Calories</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(totalCalories))) + " kcal</p><p class=\"metric-sub\">Today burn</p></article>" +
                 "<article class=\"card span-6\"><h4>Resting HR</h4>" + (rhr ? "<p class=\"metric\">" + esc(rhr.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(rhr.date) + "</p>" : "<div class=\"empty-state\"><strong>Not available</strong><p>No resting HR for today.</p><a class=\"hint-link\" href=\"#\" data-reason=\"resting-hr\">Not available - Why?</a></div>") + "</article>" +
-                "<article class=\"card span-6\"><h4>Data Freshness</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Steps</span><span>" + esc(fresh.steps) + "</span></div><div class=\"freshness-item\"><span>Sleep</span><span>" + esc(fresh.sleep) + "</span></div><div class=\"freshness-item\"><span>Heart Rate</span><span>" + esc(fresh.heartRate) + "</span></div><div class=\"freshness-item\"><span>Resting HR</span><span>" + esc(fresh.restingHeartRate) + "</span></div></div></article>" +
+                "<article class=\"card span-6\"><h4>Cardio Snapshot</h4><p class=\"metric-sub\">" + (latestSpO2 ? ("SpO2 " + esc((Number(latestSpO2.percentage) * 100).toFixed(1)) + "%") : "SpO2 unavailable") + "</p><p class=\"metric-sub\">" + (latestHrv ? ("HRV RMSSD " + esc(Number(latestHrv.rmssd).toFixed(1)) + " ms") : "HRV unavailable") + "</p></article>" +
+                "<article class=\"card span-6\"><h4>Nutrition Snapshot</h4>" + (latestNutrition ? "<p class=\"metric\">" + esc(u.formatNumber(Math.round(Number(latestNutrition.energy_kcal || 0)))) + " kcal</p><p class=\"metric-sub\">Protein " + esc(u.formatNumber(Math.round(Number(latestNutrition.protein_grams || 0)))) + "g | Carbs " + esc(u.formatNumber(Math.round(Number(latestNutrition.carbs_grams || 0)))) + "g | Fat " + esc(u.formatNumber(Math.round(Number(latestNutrition.fat_grams || 0)))) + "g</p>" : empty("No nutrition record for latest interval.")) + "</article>" +
+                "<article class=\"card span-6\"><h4>Data Freshness</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Steps</span><span>" + esc(fresh.steps) + "</span></div><div class=\"freshness-item\"><span>Sleep</span><span>" + esc(fresh.sleep) + "</span></div><div class=\"freshness-item\"><span>Heart Rate</span><span>" + esc(fresh.heartRate) + "</span></div><div class=\"freshness-item\"><span>Resting HR</span><span>" + esc(fresh.restingHeartRate) + "</span></div><div class=\"freshness-item\"><span>Active Calories</span><span>" + esc(fresh.activeCalories) + "</span></div><div class=\"freshness-item\"><span>Distance</span><span>" + esc(fresh.distance) + "</span></div><div class=\"freshness-item\"><span>Total Calories</span><span>" + esc(fresh.totalCalories) + "</span></div><div class=\"freshness-item\"><span>Nutrition</span><span>" + esc(fresh.nutrition) + "</span></div><div class=\"freshness-item\"><span>SpO2</span><span>" + esc(fresh.oxygenSaturation) + "</span></div><div class=\"freshness-item\"><span>HRV</span><span>" + esc(fresh.hrv) + "</span></div></div></article>" +
                 "</section>";
 
-            byId("todayRefresh").addEventListener("click", function () { renderToday(true); });
             byId("todaySync").addEventListener("click", async function () {
                 try {
                     setStatus("Sync requested...");
-                    await api.triggerSync();
+                    await api.triggerSync({ automatic: false });
                     for (var i = 0; i < 7; i += 1) {
                         await new Promise(function (resolve) { global.setTimeout(resolve, 2000); });
                         updateLastSynced(data(await api.getSyncStatus(true)));
                     }
                     setStatus("Sync completed.");
-                    renderToday(true);
+                    renderToday(true, true);
                 } catch (err) {
                     setStatus(err.message || "Sync failed.", "error");
                 }
             });
             hintLinks();
         } catch (err) {
+            if (silent) {
+                return;
+            }
             el.viewContainer.innerHTML = "<section class=\"error-state\"><h3>Unable to load today</h3><p>" + esc(err.message || "Unexpected error") + "</p></section>";
         }
     }
@@ -272,8 +293,10 @@
         }, null);
     }
 
-    async function renderSleep(force) {
-        el.viewContainer.innerHTML = skeleton();
+    async function renderSleep(force, silent) {
+        if (!silent) {
+            el.viewContainer.innerHTML = skeleton();
+        }
         try {
             var day = s.date.sleep;
             var dayDate = new Date(day + "T00:00:00");
@@ -294,7 +317,7 @@
             var bedVar = Math.round(u.varianceMinutes(week.map(function (r) { return r.start_time; })));
             var wakeVar = Math.round(u.varianceMinutes(week.map(function (r) { return r.end_time; })));
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Sleep</p><h3>Recovery and consistency</h3></div><div class=\"view-actions\"><button id=\"sleepRefresh\" class=\"btn btn-secondary\" type=\"button\">Manual Refresh</button></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Sleep</p><h3>Recovery and consistency</h3></div></section>" +
                 "<section class=\"controls\"><div class=\"control\"><label for=\"sleepDate\">Date</label><input id=\"sleepDate\" type=\"date\" value=\"" + esc(day) + "\"></div><div class=\"control\"><label for=\"sleepWindow\">Trend window</label><select id=\"sleepWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-4\"><h4>Selected Night</h4>" + (chosen ? "<p class=\"metric\">" + esc(u.formatDurationMs(chosen.duration_ms)) + "</p><p class=\"metric-sub\">Bed " + esc(u.formatTime(chosen.start_time, s.prefs)) + " | Wake " + esc(u.formatTime(chosen.end_time, s.prefs)) + "</p>" : empty("No sleep data for selected date.")) + "</article>" +
@@ -304,7 +327,6 @@
                 "<article class=\"card span-6\"><h4>" + esc(win) + "-Day Trend</h4><div class=\"chart-wrap\"><canvas id=\"sleepTrendChart\"></canvas></div></article>" +
                 "</section>";
 
-            byId("sleepRefresh").addEventListener("click", function () { renderSleep(true); });
             byId("sleepDate").addEventListener("change", function (e) { s.date.sleep = e.target.value; renderSleep(true); });
             byId("sleepWindow").addEventListener("change", function (e) {
                 s.prefs.sleepTrendWindow = Number(e.target.value);
@@ -316,6 +338,8 @@
                 charts.horizontalDuration("sleepSessionChart", {
                     labels: sessions.map(function (r) { return u.formatTime(r.start_time, s.prefs); }),
                     values: sessions.map(function (r) { return Number(r.duration_ms || 0) / 3600000; }),
+                    color: "#3f7858",
+                    animate: !silent,
                     tickFormatter: function (v) { return v + "h"; }
                 });
             } else {
@@ -327,6 +351,8 @@
                     labels: aggs.map(function (r) { return r.date; }),
                     values: aggs.map(function (r) { return Number(r.value || 0) / 3600000; }),
                     label: "Sleep hours",
+                    color: "#5f9b79",
+                    animate: !silent,
                     fill: true,
                     tickFormatter: function (v) { return v + "h"; }
                 });
@@ -336,12 +362,17 @@
 
             hintLinks();
         } catch (err) {
+            if (silent) {
+                return;
+            }
             el.viewContainer.innerHTML = "<section class=\"error-state\"><h3>Unable to load sleep</h3><p>" + esc(err.message || "Unexpected error") + "</p></section>";
         }
     }
 
-    async function renderCardio(force) {
-        el.viewContainer.innerHTML = skeleton();
+    async function renderCardio(force, silent) {
+        if (!silent) {
+            el.viewContainer.innerHTML = skeleton();
+        }
         try {
             var day = s.date.cardio;
             var dayDate = new Date(day + "T00:00:00");
@@ -351,25 +382,35 @@
             var rows = await Promise.all([
                 api.getHeartRate({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 2000, offset: 0 }, force),
                 api.getRestingHeartRate({ from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()), limit: 400, offset: 0 }, force),
-                api.getHrv(force)
+                api.getHrv({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force),
+                api.getOxygenSaturation({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force),
+                api.getAggregates({ type: "hrv", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force),
+                api.getAggregates({ type: "oxygen_saturation", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force)
             ]);
 
             var hr = u.safeArray(data(rows[0])).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
             var rhr = u.safeArray(data(rows[1])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
-            var hrv = u.safeArray(data(rows[2]));
+            var hrv = u.safeArray(data(rows[2])).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
+            var spo2 = u.safeArray(data(rows[3])).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
+            var hrvTrend = u.safeArray(data(rows[4])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+            var spo2Trend = u.safeArray(data(rows[5])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
             var latest = hr.length ? hr[hr.length - 1] : null;
+            var latestHrv = hrv.length ? hrv[hrv.length - 1] : null;
+            var latestSpO2 = spo2.length ? spo2[spo2.length - 1] : null;
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Cardio</p><h3>Intraday and resting trends</h3></div><div class=\"view-actions\"><button id=\"cardioRefresh\" class=\"btn btn-secondary\" type=\"button\">Manual Refresh</button></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Cardio</p><h3>Intraday and resting trends</h3></div></section>" +
                 "<section class=\"controls\"><div class=\"control\"><label for=\"cardioDate\">Intraday date</label><input id=\"cardioDate\" type=\"date\" value=\"" + esc(day) + "\"></div><div class=\"control\"><label for=\"cardioWindow\">Resting trend</label><select id=\"cardioWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-4\"><h4>Latest Reading</h4>" + (latest ? "<p class=\"metric\">" + esc(latest.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latest.timestamp, s.prefs)) + "</p>" : empty("No heart-rate data for date.")) + "</article>" +
                 "<article class=\"card span-4\"><h4>Resting HR</h4>" + (rhr.length ? "<p class=\"metric\">" + esc(rhr[rhr.length - 1].bpm) + " bpm</p><p class=\"metric-sub\">Trend window</p>" : empty("No resting trend data.")) + "</article>" +
-                "<article class=\"card span-4\"><h4>HRV</h4>" + (hrv.length ? "<p class=\"metric\">" + esc(hrv.length) + " points</p>" : "<div class=\"empty-state\"><strong>Not available</strong><p>HRV is planned later.</p><a class=\"hint-link\" href=\"#\" data-reason=\"hrv\">Not available - Why?</a></div>") + "</article>" +
+                "<article class=\"card span-4\"><h4>HRV</h4>" + (latestHrv ? "<p class=\"metric\">" + esc(Number(latestHrv.rmssd || 0).toFixed(1)) + " ms</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latestHrv.timestamp, s.prefs)) + "</p>" : "<div class=\"empty-state\"><strong>Not available</strong><p>No HRV points for selected date.</p><a class=\"hint-link\" href=\"#\" data-reason=\"hrv\">Not available - Why?</a></div>") + "</article>" +
+                "<article class=\"card span-4\"><h4>SpO2</h4>" + (latestSpO2 ? "<p class=\"metric\">" + esc((Number(latestSpO2.percentage || 0) * 100).toFixed(1)) + "%</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latestSpO2.timestamp, s.prefs)) + "</p>" : empty("No SpO2 points for selected date.")) + "</article>" +
                 "<article class=\"card span-6\"><h4>Intraday Heart Rate</h4><div class=\"chart-wrap\"><canvas id=\"cardioHrChart\"></canvas></div></article>" +
                 "<article class=\"card span-6\"><h4>Resting HR Trend</h4><div class=\"chart-wrap\"><canvas id=\"cardioRestChart\"></canvas></div></article>" +
+                "<article class=\"card span-6\"><h4>HRV Trend</h4><div class=\"chart-wrap\"><canvas id=\"cardioHrvChart\"></canvas></div></article>" +
+                "<article class=\"card span-6\"><h4>SpO2 Trend</h4><div class=\"chart-wrap\"><canvas id=\"cardioSpO2Chart\"></canvas></div></article>" +
                 "</section>";
 
-            byId("cardioRefresh").addEventListener("click", function () { renderCardio(true); });
             byId("cardioDate").addEventListener("change", function (e) { s.date.cardio = e.target.value; renderCardio(true); });
             byId("cardioWindow").addEventListener("change", function (e) {
                 s.prefs.cardioTrendWindow = Number(e.target.value);
@@ -382,6 +423,7 @@
                     labels: hr.map(function (r) { return u.formatTime(r.timestamp, s.prefs); }),
                     values: hr.map(function (r) { return Number(r.bpm || 0); }),
                     label: "BPM",
+                    animate: !silent,
                     fill: true
                 });
             } else {
@@ -392,14 +434,41 @@
                 charts.line("cardioRestChart", {
                     labels: rhr.map(function (r) { return r.date; }),
                     values: rhr.map(function (r) { return Number(r.bpm || 0); }),
+                    animate: !silent,
                     label: "Resting BPM"
                 });
             } else {
                 byId("cardioRestChart").parentElement.innerHTML = empty("No resting HR points.");
             }
 
+            if (hrvTrend.length) {
+                charts.line("cardioHrvChart", {
+                    labels: hrvTrend.map(function (r) { return r.date; }),
+                    values: hrvTrend.map(function (r) { return Number(r.value || 0); }),
+                    animate: !silent,
+                    label: "RMSSD (ms)"
+                });
+            } else {
+                byId("cardioHrvChart").parentElement.innerHTML = empty("No HRV trend data.");
+            }
+
+            if (spo2Trend.length) {
+                charts.line("cardioSpO2Chart", {
+                    labels: spo2Trend.map(function (r) { return r.date; }),
+                    values: spo2Trend.map(function (r) { return Number(r.value || 0) * 100; }),
+                    animate: !silent,
+                    label: "SpO2 (%)",
+                    tickFormatter: function (value) { return Number(value).toFixed(0) + "%"; }
+                });
+            } else {
+                byId("cardioSpO2Chart").parentElement.innerHTML = empty("No SpO2 trend data.");
+            }
+
             hintLinks();
         } catch (err) {
+            if (silent) {
+                return;
+            }
             el.viewContainer.innerHTML = "<section class=\"error-state\"><h3>Unable to load cardio</h3><p>" + esc(err.message || "Unexpected error") + "</p></section>";
         }
     }
@@ -408,8 +477,10 @@
         return u.safeArray(rows).reduce(function (total, row) { return total + Number(row.value || 0); }, 0);
     }
 
-    async function renderActivity(force) {
-        el.viewContainer.innerHTML = skeleton();
+    async function renderActivity(force, silent) {
+        if (!silent) {
+            el.viewContainer.innerHTML = skeleton();
+        }
         try {
             var win = Number(s.prefs.activityTrendWindow || 14);
             var now = new Date();
@@ -419,27 +490,36 @@
 
             var rows = await Promise.all([
                 api.getAggregates({ type: "steps", from: u.toDateInputValue(curStart), to: u.toDateInputValue(now) }, force),
-                api.getAggregates({ type: "steps", from: u.toDateInputValue(prevStart), to: u.toDateInputValue(prevEnd) }, force)
+                api.getAggregates({ type: "steps", from: u.toDateInputValue(prevStart), to: u.toDateInputValue(prevEnd) }, force),
+                api.getAggregates({ type: "active_calories", from: u.toDateInputValue(curStart), to: u.toDateInputValue(now) }, force),
+                api.getAggregates({ type: "distance", from: u.toDateInputValue(curStart), to: u.toDateInputValue(now) }, force)
             ]);
 
             var cur = u.safeArray(data(rows[0])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
             var prev = u.safeArray(data(rows[1]));
+            var activeCalories = u.safeArray(data(rows[2])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+            var distance = u.safeArray(data(rows[3])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
             var total = sum(cur);
             var prevTotal = sum(prev);
             var avg = cur.length ? total / cur.length : 0;
+            var activeCaloriesTotal = sum(activeCalories);
+            var distanceMetersTotal = sum(distance);
             var dir = u.trendDirection(total, prevTotal);
             var arrow = dir === "up" ? "UP" : dir === "down" ? "DOWN" : "FLAT";
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Activity</p><h3>Steps and trends</h3></div><div class=\"view-actions\"><button id=\"activityRefresh\" class=\"btn btn-secondary\" type=\"button\">Manual Refresh</button></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Activity</p><h3>Steps, distance, and calories</h3></div></section>" +
                 "<section class=\"controls\"><div class=\"control\"><label for=\"activityWindow\">Window</label><select id=\"activityWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-4\"><h4>Total</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(total))) + "</p><p class=\"metric-sub\">Last " + esc(win) + " days</p></article>" +
                 "<article class=\"card span-4\"><h4>Daily Average</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(avg))) + "</p><p class=\"metric-sub\">steps/day</p></article>" +
                 "<article class=\"card span-4\"><h4>Trend</h4><p class=\"metric\">" + esc(arrow) + "</p><p class=\"metric-sub\">" + esc(u.trendLabel(dir)) + " vs previous period</p></article>" +
+                "<article class=\"card span-6\"><h4>Active Calories</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(activeCaloriesTotal))) + " kcal</p><p class=\"metric-sub\">Window total</p></article>" +
+                "<article class=\"card span-6\"><h4>Distance</h4><p class=\"metric\">" + esc(u.formatDistanceMeters(distanceMetersTotal)) + "</p><p class=\"metric-sub\">Window total</p></article>" +
                 "<article class=\"card span-12\"><h4>Steps Per Day</h4><div class=\"chart-wrap\"><canvas id=\"activityChart\"></canvas></div></article>" +
+                "<article class=\"card span-6\"><h4>Active Calories Trend</h4><div class=\"chart-wrap\"><canvas id=\"activityCaloriesChart\"></canvas></div></article>" +
+                "<article class=\"card span-6\"><h4>Distance Trend</h4><div class=\"chart-wrap\"><canvas id=\"activityDistanceChart\"></canvas></div></article>" +
                 "</section>";
 
-            byId("activityRefresh").addEventListener("click", function () { renderActivity(true); });
             byId("activityWindow").addEventListener("change", function (e) {
                 s.prefs.activityTrendWindow = Number(e.target.value);
                 s.prefs = u.savePreferences(s.prefs);
@@ -450,13 +530,119 @@
                 charts.bar("activityChart", {
                     labels: cur.map(function (r) { return r.date; }),
                     values: cur.map(function (r) { return Number(r.value || 0); }),
+                    animate: !silent,
                     label: "Steps"
                 });
             } else {
                 byId("activityChart").parentElement.innerHTML = empty("No step aggregates in this range.");
             }
+
+            if (activeCalories.length) {
+                charts.line("activityCaloriesChart", {
+                    labels: activeCalories.map(function (r) { return r.date; }),
+                    values: activeCalories.map(function (r) { return Number(r.value || 0); }),
+                    animate: !silent,
+                    label: "kcal",
+                    fill: true
+                });
+            } else {
+                byId("activityCaloriesChart").parentElement.innerHTML = empty("No active-calorie aggregates in this range.");
+            }
+
+            if (distance.length) {
+                charts.line("activityDistanceChart", {
+                    labels: distance.map(function (r) { return r.date; }),
+                    values: distance.map(function (r) { return Number(r.value || 0) / 1000; }),
+                    animate: !silent,
+                    label: "km",
+                    fill: true,
+                    tickFormatter: function (value) { return Number(value).toFixed(1) + " km"; }
+                });
+            } else {
+                byId("activityDistanceChart").parentElement.innerHTML = empty("No distance aggregates in this range.");
+            }
         } catch (err) {
+            if (silent) {
+                return;
+            }
             el.viewContainer.innerHTML = "<section class=\"error-state\"><h3>Unable to load activity</h3><p>" + esc(err.message || "Unexpected error") + "</p></section>";
+        }
+    }
+
+    async function renderNutrition(force, silent) {
+        if (!silent) {
+            el.viewContainer.innerHTML = skeleton();
+        }
+        try {
+            var day = s.date.nutrition;
+            var dayDate = new Date(day + "T00:00:00");
+            var win = Number(s.prefs.nutritionTrendWindow || 14);
+            var start = u.shiftDate(new Date(), -(win - 1));
+
+            var rows = await Promise.all([
+                api.getNutrition({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force),
+                api.getAggregates({ type: "nutrition", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force)
+            ]);
+
+            var entries = u.safeArray(data(rows[0]));
+            var trend = u.safeArray(data(rows[1])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+            var totals = entries.reduce(function (acc, row) {
+                acc.calories += Number(row.energy_kcal || 0);
+                acc.protein += Number(row.protein_grams || 0);
+                acc.carbs += Number(row.carbs_grams || 0);
+                acc.fat += Number(row.fat_grams || 0);
+                return acc;
+            }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+            var macroChart = entries.length
+                ? "<div class=\"chart-wrap\"><canvas id=\"nutritionMacroChart\"></canvas></div>"
+                : empty("No nutrition entries on selected date.");
+            var latestMeal = entries.length ? entries[entries.length - 1] : null;
+
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Nutrition</p><h3>Calories and macros</h3></div></section>" +
+                "<section class=\"controls\"><div class=\"control\"><label for=\"nutritionDate\">Date</label><input id=\"nutritionDate\" type=\"date\" value=\"" + esc(day) + "\"></div><div class=\"control\"><label for=\"nutritionWindow\">Trend window</label><select id=\"nutritionWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
+                "<section class=\"card-grid\">" +
+                "<article class=\"card span-3\"><h4>Calories</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(totals.calories))) + "</p><p class=\"metric-sub\">kcal</p></article>" +
+                "<article class=\"card span-3\"><h4>Protein</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(totals.protein))) + "g</p><p class=\"metric-sub\">daily</p></article>" +
+                "<article class=\"card span-3\"><h4>Carbs</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(totals.carbs))) + "g</p><p class=\"metric-sub\">daily</p></article>" +
+                "<article class=\"card span-3\"><h4>Fat</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(totals.fat))) + "g</p><p class=\"metric-sub\">daily</p></article>" +
+                "<article class=\"card span-6\"><h4>Macro Breakdown</h4>" + macroChart + "</article>" +
+                "<article class=\"card span-6\"><h4>Calorie Trend</h4><div class=\"chart-wrap\"><canvas id=\"nutritionTrendChart\"></canvas></div></article>" +
+                "<article class=\"card span-12\"><h4>Latest Entry</h4>" + (latestMeal ? ("<p class=\"metric-sub\">" + esc(latestMeal.meal_type || "Meal") + " | " + esc(u.formatDateTime(latestMeal.start_time, s.prefs)) + "</p><p class=\"metric-sub\">Calories " + esc(u.formatNumber(Math.round(Number(latestMeal.energy_kcal || 0)))) + " kcal, Protein " + esc(u.formatNumber(Math.round(Number(latestMeal.protein_grams || 0)))) + "g, Carbs " + esc(u.formatNumber(Math.round(Number(latestMeal.carbs_grams || 0)))) + "g, Fat " + esc(u.formatNumber(Math.round(Number(latestMeal.fat_grams || 0)))) + "g</p>") : "<div class=\"empty-state\"><strong>No entries</strong><p>No nutrition rows in selected range.</p></div>") + "</article>" +
+                "</section>";
+
+            byId("nutritionDate").addEventListener("change", function (e) { s.date.nutrition = e.target.value; renderNutrition(true); });
+            byId("nutritionWindow").addEventListener("change", function (e) {
+                s.prefs.nutritionTrendWindow = Number(e.target.value);
+                s.prefs = u.savePreferences(s.prefs);
+                renderNutrition(true);
+            });
+
+            if (entries.length) {
+                charts.bar("nutritionMacroChart", {
+                    labels: ["Protein", "Carbs", "Fat"],
+                    values: [totals.protein, totals.carbs, totals.fat],
+                    animate: !silent,
+                    label: "grams"
+                });
+            }
+
+            if (trend.length) {
+                charts.line("nutritionTrendChart", {
+                    labels: trend.map(function (r) { return r.date; }),
+                    values: trend.map(function (r) { return Number(r.value || 0); }),
+                    animate: !silent,
+                    label: "kcal",
+                    fill: true
+                });
+            } else {
+                byId("nutritionTrendChart").parentElement.innerHTML = empty("No nutrition trend data.");
+            }
+        } catch (err) {
+            if (silent) {
+                return;
+            }
+            el.viewContainer.innerHTML = "<section class=\"error-state\"><h3>Unable to load nutrition</h3><p>" + esc(err.message || "Unexpected error") + "</p></section>";
         }
     }
 
@@ -464,8 +650,10 @@
         return "<span class=\"pill\">" + esc(v || "unknown") + "</span>";
     }
 
-    async function renderSettings(force) {
-        el.viewContainer.innerHTML = skeleton();
+    async function renderSettings(force, silent) {
+        if (!silent) {
+            el.viewContainer.innerHTML = skeleton();
+        }
         try {
             var rows = await Promise.all([
                 api.getSession(true),
@@ -481,22 +669,18 @@
             var defaultFrom = u.toDateInputValue(u.shiftDate(now, -29));
             var defaultTo = u.toDateInputValue(now);
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Settings</p><h3>Preferences, security, exports</h3></div><div class=\"view-actions\"><button id=\"settingsRefresh\" class=\"btn btn-secondary\" type=\"button\">Manual Refresh</button></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Settings</p><h3>Preferences, security, exports</h3></div></section>" +
                 "<section class=\"settings-grid\">" +
-                "<article class=\"card\"><h4>Preferences</h4><div class=\"settings-row\"><label for=\"prefTime\">Time format</label><select id=\"prefTime\"><option value=\"12h\" " + (s.prefs.timeFormat === "12h" ? "selected" : "") + ">12-hour</option><option value=\"24h\" " + (s.prefs.timeFormat === "24h" ? "selected" : "") + ">24-hour</option></select><label for=\"prefRefresh\">Refresh behavior</label><select id=\"prefRefresh\"><option value=\"periodic\" " + (s.prefs.refreshBehavior === "periodic" ? "selected" : "") + ">On open + periodic</option><option value=\"on_open\" " + (s.prefs.refreshBehavior === "on_open" ? "selected" : "") + ">On open only</option></select><label for=\"prefSync\">Sync window</label><select id=\"prefSync\"><option value=\"30_days\" " + (s.prefs.syncWindow === "30_days" ? "selected" : "") + ">30 days</option><option value=\"full_history\" " + (s.prefs.syncWindow === "full_history" ? "selected" : "") + ">Full history</option></select><button id=\"savePrefs\" class=\"btn btn-primary\" type=\"button\">Save Preferences</button></div></article>" +
+                "<article class=\"card\"><h4>Preferences</h4><div class=\"settings-row\"><label for=\"prefTime\">Time format</label><select id=\"prefTime\"><option value=\"12h\" " + (s.prefs.timeFormat === "12h" ? "selected" : "") + ">12-hour</option><option value=\"24h\" " + (s.prefs.timeFormat === "24h" ? "selected" : "") + ">24-hour</option></select><button id=\"savePrefs\" class=\"btn btn-primary\" type=\"button\">Save Preferences</button></div></article>" +
                 "<article class=\"card\"><h4>Security</h4><div class=\"toggle-row\"><div><strong>Passcode protection</strong><p>Disable only on trusted LANs.</p></div><button id=\"securityToggle\" type=\"button\" class=\"toggle " + (secureOn ? "is-on" : "") + "\"></button></div><form id=\"passcodeForm\" class=\"settings-row\"><label for=\"currentPass\">Current passcode (optional)</label><input id=\"currentPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\"><label for=\"newPass\">New passcode</label><input id=\"newPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\" placeholder=\"4-8 digits\"><button class=\"btn btn-secondary\" type=\"submit\">Update Passcode</button></form></article>" +
                 "<article class=\"card\"><h4>Export</h4><div class=\"settings-row\"><label for=\"expType\">Metric</label><select id=\"expType\"><option value=\"heart_rate\">Heart Rate</option><option value=\"sleep\">Sleep</option><option value=\"steps\">Steps</option><option value=\"resting_heart_rate\">Resting Heart Rate</option></select><label for=\"expFrom\">From</label><input id=\"expFrom\" type=\"date\" value=\"" + esc(defaultFrom) + "\"><label for=\"expTo\">To</label><input id=\"expTo\" type=\"date\" value=\"" + esc(defaultTo) + "\"><button id=\"expCsv\" class=\"btn btn-primary\" type=\"button\">Download CSV</button><button id=\"expAll\" class=\"btn btn-secondary\" type=\"button\">Export All Data</button></div></article>" +
                 "<article class=\"card\"><h4>App Info</h4><div class=\"app-info\"><div><span>Version</span><span>" + esc(info.app_version || "--") + "</span></div><div><span>Phone</span><span>" + esc(info.phone_name || "--") + "</span></div><div><span>IP</span><span>" + esc(info.local_ip_address || "--") + "</span></div><div><span>Uptime</span><span>" + esc(info.uptime_seconds || 0) + "s</span></div><div><span>Clients</span><span>" + esc(info.connected_clients || 0) + "</span></div></div></article>" +
-                "<article class=\"card span-12\"><h4>Permissions</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Heart Rate</span>" + badge(perm.heart_rate) + "</div><div class=\"freshness-item\"><span>Sleep</span>" + badge(perm.sleep) + "</div><div class=\"freshness-item\"><span>Steps</span>" + badge(perm.steps) + "</div><div class=\"freshness-item\"><span>Resting HR</span>" + badge(perm.resting_heart_rate) + "</div><div class=\"freshness-item\"><span>HRV</span>" + badge(perm.heart_rate_variability) + "</div><div class=\"freshness-item\"><span>History</span>" + badge(perm.history) + "</div></div></article>" +
+                "<article class=\"card span-12\"><h4>Permissions</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Heart Rate</span>" + badge(perm.heart_rate) + "</div><div class=\"freshness-item\"><span>Sleep</span>" + badge(perm.sleep) + "</div><div class=\"freshness-item\"><span>Steps</span>" + badge(perm.steps) + "</div><div class=\"freshness-item\"><span>Resting HR</span>" + badge(perm.resting_heart_rate) + "</div><div class=\"freshness-item\"><span>Active Calories</span>" + badge(perm.active_calories) + "</div><div class=\"freshness-item\"><span>Distance</span>" + badge(perm.distance) + "</div><div class=\"freshness-item\"><span>Total Calories</span>" + badge(perm.total_calories) + "</div><div class=\"freshness-item\"><span>Nutrition</span>" + badge(perm.nutrition) + "</div><div class=\"freshness-item\"><span>SpO2</span>" + badge(perm.oxygen_saturation) + "</div><div class=\"freshness-item\"><span>HRV</span>" + badge(perm.heart_rate_variability) + "</div><div class=\"freshness-item\"><span>History</span>" + badge(perm.history) + "</div></div></article>" +
                 "</section>";
 
-            byId("settingsRefresh").addEventListener("click", function () { renderSettings(true); });
             byId("savePrefs").addEventListener("click", function () {
                 s.prefs.timeFormat = byId("prefTime").value;
-                s.prefs.refreshBehavior = byId("prefRefresh").value;
-                s.prefs.syncWindow = byId("prefSync").value;
                 s.prefs = u.savePreferences(s.prefs);
-                restartRefresh();
                 setStatus("Preferences saved.");
             });
             byId("securityToggle").addEventListener("click", async function () {
@@ -535,27 +719,90 @@
                 global.location.href = api.buildExportAllUrl(byId("expFrom").value, byId("expTo").value);
             });
         } catch (err) {
+            if (silent) {
+                return;
+            }
             el.viewContainer.innerHTML = "<section class=\"error-state\"><h3>Unable to load settings</h3><p>" + esc(err.message || "Unexpected error") + "</p></section>";
         }
     }
 
-    async function render(force) {
+    async function render(force, silent) {
         if (!s.authed) return;
+        if (s.rendering) return;
+        s.rendering = true;
         charts.destroyAll();
-        if (s.view === "today") return renderToday(force);
-        if (s.view === "sleep") return renderSleep(force);
-        if (s.view === "cardio") return renderCardio(force);
-        if (s.view === "activity") return renderActivity(force);
-        return renderSettings(force);
+        try {
+            if (s.view === "today") {
+                await renderToday(force, silent);
+                return;
+            }
+            if (s.view === "sleep") {
+                await renderSleep(force, silent);
+                return;
+            }
+            if (s.view === "cardio") {
+                await renderCardio(force, silent);
+                return;
+            }
+            if (s.view === "activity") {
+                await renderActivity(force, silent);
+                return;
+            }
+            if (s.view === "nutrition") {
+                await renderNutrition(force, silent);
+                return;
+            }
+            await renderSettings(force, silent);
+        } finally {
+            s.rendering = false;
+        }
     }
 
-    function restartRefresh() {
-        if (s.timer.refresh) {
-            global.clearInterval(s.timer.refresh);
-            s.timer.refresh = null;
+    function stopBackgroundUpdates() {
+        if (s.timer.todayPoll) {
+            global.clearInterval(s.timer.todayPoll);
+            s.timer.todayPoll = null;
         }
-        if (!s.authed || s.prefs.refreshBehavior !== "periodic") return;
-        s.timer.refresh = global.setInterval(function () { render(true); }, 60000);
+        if (s.timer.autoSync) {
+            global.clearInterval(s.timer.autoSync);
+            s.timer.autoSync = null;
+        }
+        if (s.timer.viewRefresh) {
+            global.clearInterval(s.timer.viewRefresh);
+            s.timer.viewRefresh = null;
+        }
+    }
+
+    function startBackgroundUpdates() {
+        stopBackgroundUpdates();
+        if (!s.authed) return;
+
+        async function pollToday() {
+            if (!s.authed) return;
+            try {
+                if (s.view === "today") {
+                    await render(true, true);
+                } else {
+                    await api.getToday(true);
+                    updateLastSynced(data(await api.getSyncStatus(true)));
+                }
+            } catch (_err) {}
+        }
+
+        pollToday();
+        s.timer.todayPoll = global.setInterval(pollToday, 10000);
+
+        s.timer.autoSync = global.setInterval(async function () {
+            if (!s.authed) return;
+            try {
+                await api.triggerSync({ automatic: true });
+            } catch (_err) {}
+        }, 60000);
+
+        s.timer.viewRefresh = global.setInterval(function () {
+            if (!s.authed || s.view === "today") return;
+            render(true, true);
+        }, 60000);
     }
 
     function startPing() {

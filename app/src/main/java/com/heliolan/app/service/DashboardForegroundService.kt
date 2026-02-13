@@ -8,20 +8,29 @@ import android.app.Service
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.heliolan.app.R
+import com.heliolan.app.ui.MainActivity
 import com.heliolan.server.DashboardServerController
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
@@ -46,6 +55,10 @@ class DashboardForegroundService : Service() {
 
     @Volatile
     private var latestDashboardQrCode: Bitmap? = null
+    private var lastKnownDashboardUrl: String? = null
+    private var runtimeMonitorJob: Job? = null
+    private var pausedForWifiLoss: Boolean = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -60,12 +73,7 @@ class DashboardForegroundService : Service() {
         val action = intent?.action ?: ACTION_START
         when (action) {
             ACTION_STOP -> {
-                serviceScope.launch {
-                    dashboardServerController.stop()
-                    latestDashboardQrCode = null
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
-                }
+                stopServerAndService()
                 return START_NOT_STICKY
             }
 
@@ -76,15 +84,17 @@ class DashboardForegroundService : Service() {
                     runCatching {
                         dashboardServerController.restart(preferredPort)
                     }.onSuccess { runtimeInfo ->
-                        latestDashboardQrCode = generateQrCode(runtimeInfo.dashboardUrl)
-                        updateNotification(runtimeInfo.dashboardUrl)
+                        onServerRunning(runtimeInfo.dashboardUrl)
                     }.onFailure { error ->
                         Log.e(TAG, "Failed to restart dashboard server.", error)
                         latestDashboardQrCode = null
-                        updateNotification(url = null)
+                        updateNotification(
+                            url = null,
+                            warningMessage = getString(R.string.dashboard_service_error_start_failed),
+                        )
                     }
                 }
-                return START_STICKY
+                return START_NOT_STICKY
             }
 
             else -> {
@@ -93,29 +103,158 @@ class DashboardForegroundService : Service() {
                     runCatching {
                         dashboardServerController.start()
                     }.onSuccess { runtimeInfo ->
-                        latestDashboardQrCode = generateQrCode(runtimeInfo.dashboardUrl)
-                        updateNotification(runtimeInfo.dashboardUrl)
+                        onServerRunning(runtimeInfo.dashboardUrl)
                     }.onFailure { error ->
                         Log.e(TAG, "Failed to start dashboard server.", error)
                         latestDashboardQrCode = null
-                        updateNotification(url = null)
+                        updateNotification(
+                            url = null,
+                            warningMessage = getString(R.string.dashboard_service_error_start_failed),
+                        )
                     }
                 }
-                return START_STICKY
+                return START_NOT_STICKY
             }
         }
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        stopServerAndService()
+        super.onTaskRemoved(rootIntent)
     }
 
     override fun onDestroy() {
         runBlocking {
             dashboardServerController.stop()
         }
+        stopRuntimeMonitors()
         latestDashboardQrCode = null
         serviceScope.cancel()
         super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    private fun stopServerAndService() {
+        serviceScope.launch {
+            dashboardServerController.stop()
+            stopRuntimeMonitors()
+            latestDashboardQrCode = null
+            lastKnownDashboardUrl = null
+            pausedForWifiLoss = false
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        }
+    }
+
+    private fun onServerRunning(url: String) {
+        pausedForWifiLoss = false
+        lastKnownDashboardUrl = url
+        latestDashboardQrCode = generateQrCode(url)
+        startRuntimeMonitors()
+        updateNotification(
+            url = url,
+            warningMessage = batterySaverWarningOrNull(),
+        )
+    }
+
+    private fun startRuntimeMonitors() {
+        if (runtimeMonitorJob == null) {
+            runtimeMonitorJob =
+                serviceScope.launch {
+                    while (isActive) {
+                        monitorRuntimeState()
+                        delay(5_000)
+                    }
+                }
+        }
+        registerNetworkCallbackIfNeeded()
+    }
+
+    private suspend fun monitorRuntimeState() {
+        if (!isWifiConnected()) {
+            pauseDueToWifiLoss()
+            return
+        }
+
+        val runtimeInfo = dashboardServerController.getRuntimeInfo() ?: return
+        if (runtimeInfo.dashboardUrl != lastKnownDashboardUrl) {
+            lastKnownDashboardUrl = runtimeInfo.dashboardUrl
+            latestDashboardQrCode = generateQrCode(runtimeInfo.dashboardUrl)
+            updateNotification(
+                url = runtimeInfo.dashboardUrl,
+                warningMessage = batterySaverWarningOrNull(),
+            )
+            return
+        }
+
+        updateNotification(
+            url = runtimeInfo.dashboardUrl,
+            warningMessage = batterySaverWarningOrNull(),
+        )
+    }
+
+    private suspend fun pauseDueToWifiLoss() {
+        if (pausedForWifiLoss) return
+        pausedForWifiLoss = true
+        dashboardServerController.stop()
+        latestDashboardQrCode = null
+        lastKnownDashboardUrl = null
+        updateNotification(
+            url = null,
+            warningMessage = getString(R.string.dashboard_service_wifi_paused),
+        )
+    }
+
+    private fun stopRuntimeMonitors() {
+        runtimeMonitorJob?.cancel()
+        runtimeMonitorJob = null
+
+        networkCallback?.let { callback ->
+            val connectivityManager = getSystemService(ConnectivityManager::class.java)
+            runCatching {
+                connectivityManager?.unregisterNetworkCallback(callback)
+            }
+        }
+        networkCallback = null
+    }
+
+    private fun registerNetworkCallbackIfNeeded() {
+        if (networkCallback != null) return
+
+        val connectivityManager = getSystemService(ConnectivityManager::class.java) ?: return
+        val callback =
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onLost(network: Network) {
+                    serviceScope.launch {
+                        pauseDueToWifiLoss()
+                    }
+                }
+
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    networkCapabilities: NetworkCapabilities,
+                ) {
+                    if (!networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                        serviceScope.launch {
+                            pauseDueToWifiLoss()
+                        }
+                    }
+                }
+            }
+
+        val request =
+            NetworkRequest.Builder()
+                .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+                .build()
+
+        runCatching {
+            connectivityManager.registerNetworkCallback(request, callback)
+            networkCallback = callback
+        }.onFailure {
+            Log.w(TAG, "Unable to register network callback", it)
+        }
+    }
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -134,13 +273,23 @@ class DashboardForegroundService : Service() {
         }
     }
 
-    private fun updateNotification(url: String?) {
-        startForeground(NOTIFICATION_ID, createNotification(url = url))
+    private fun updateNotification(
+        url: String?,
+        warningMessage: String? = null,
+    ) {
+        startForeground(
+            NOTIFICATION_ID,
+            createNotification(
+                url = url,
+                warningMessage = warningMessage,
+            ),
+        )
     }
 
     private fun createNotification(
         url: String?,
         isStarting: Boolean = false,
+        warningMessage: String? = null,
     ): Notification {
         val stopIntent =
             Intent(this, DashboardForegroundService::class.java).apply {
@@ -154,7 +303,7 @@ class DashboardForegroundService : Service() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
 
-        val openPendingIntent =
+        val openDashboardPendingIntent =
             url?.let { dashboardUrl ->
                 val openIntent =
                     Intent(Intent.ACTION_VIEW, Uri.parse(dashboardUrl)).apply {
@@ -168,9 +317,20 @@ class DashboardForegroundService : Service() {
                 )
             }
 
+        val openAppPendingIntent =
+            PendingIntent.getActivity(
+                this,
+                103,
+                Intent(this, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
         val contentText =
             when {
                 isStarting -> getString(R.string.dashboard_service_starting)
+                !warningMessage.isNullOrBlank() -> warningMessage
                 !url.isNullOrBlank() -> getString(R.string.dashboard_service_url, url)
                 else -> getString(R.string.dashboard_service_error_start_failed)
             }
@@ -181,7 +341,13 @@ class DashboardForegroundService : Service() {
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
-            .setContentIntent(openPendingIntent)
+            .setContentIntent(openAppPendingIntent)
+            .setLargeIcon(latestDashboardQrCode)
+            .addAction(
+                android.R.drawable.ic_menu_view,
+                getString(R.string.dashboard_service_action_open),
+                openDashboardPendingIntent ?: openAppPendingIntent,
+            )
             .addAction(
                 android.R.drawable.ic_media_pause,
                 getString(R.string.action_stop),
@@ -201,5 +367,21 @@ class DashboardForegroundService : Service() {
                 }
             }
         }.getOrNull()
+    }
+
+    private fun isWifiConnected(): Boolean {
+        val connectivityManager = getSystemService(ConnectivityManager::class.java) ?: return false
+        val active = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(active) ?: return false
+        return capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+    }
+
+    private fun batterySaverWarningOrNull(): String? {
+        val powerManager = getSystemService(PowerManager::class.java)
+        return if (powerManager?.isPowerSaveMode == true) {
+            getString(R.string.dashboard_service_battery_warning)
+        } else {
+            null
+        }
     }
 }
