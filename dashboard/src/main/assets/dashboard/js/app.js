@@ -81,6 +81,13 @@
             .replace(/>/g, "&gt;");
     }
 
+    function normalizePercentage(value) {
+        var numeric = Number(value);
+        if (!Number.isFinite(numeric)) return null;
+        var scaled = numeric <= 1 ? numeric * 100 : numeric;
+        return u.clamp(scaled, 0, 100);
+    }
+
     function formatApiError(err, fallback) {
         if (!err || typeof err !== "object") return fallback;
         if (err.code === "UNEXPECTED_HTML_RESPONSE") {
@@ -160,21 +167,39 @@
         return "<div class=\"empty-state\"><strong>No data</strong><p>" + esc(msg) + "</p></div>";
     }
 
+    function modalMessageForReason(reason) {
+        if (reason === "hrv") {
+            return "HRV is available only when your source app/device writes HRV and Health Connect permissions are granted.";
+        }
+        if (reason === "resting-hr") {
+            return "Resting heart rate can be missing if sync has not completed or the source app has not written a resting value for this day.";
+        }
+        if (reason === "sleep") {
+            return "Sleep stage breakdown is not exposed by this dashboard yet. Session duration and bedtime/wake time still sync normally.";
+        }
+        return "Data gaps are usually caused by permission status, source-app sync state, or missing upstream records.";
+    }
+
+    function openInfoModal(reason) {
+        if (!el.infoModal || !el.infoModalBody) return;
+        el.infoModalBody.textContent = modalMessageForReason(reason || "");
+        setVisible(el.infoModal, true);
+        el.infoModal.setAttribute("aria-hidden", "false");
+    }
+
+    function closeInfoModal() {
+        if (!el.infoModal) return;
+        setVisible(el.infoModal, false);
+        el.infoModal.setAttribute("aria-hidden", "true");
+    }
+
     function hintLinks() {
         var links = el.viewContainer.querySelectorAll(".hint-link");
         Array.prototype.forEach.call(links, function each(link) {
             link.addEventListener("click", function onClick(evt) {
                 evt.preventDefault();
                 var reason = link.getAttribute("data-reason") || "";
-                if (reason === "hrv") {
-                    setStatus("HRV values depend on source-device support and granted permissions.");
-                    return;
-                }
-                if (reason === "resting-hr") {
-                    setStatus("Resting HR can be missing if source sync is incomplete.");
-                    return;
-                }
-                setStatus("Data gaps are usually permissions or source-sync related.");
+                openInfoModal(reason);
             });
         });
     }
@@ -227,6 +252,31 @@
         el.lastSyncedPill.textContent = "Last synced: " + u.formatRelativeTime(new Date(newest).toISOString());
     }
 
+    async function runSyncAndRefreshActiveView(triggerButton) {
+        var activeView = s.view;
+        if (triggerButton) {
+            triggerButton.disabled = true;
+        }
+        try {
+            setStatus("Sync requested...");
+            await api.triggerSync({ automatic: false });
+            for (var i = 0; i < 7; i += 1) {
+                await new Promise(function (resolve) { global.setTimeout(resolve, 2000); });
+                updateLastSynced(data(await api.getSyncStatus(true)));
+            }
+            setStatus("Sync completed.", "success");
+            if (s.view === activeView) {
+                await render(true, true);
+            }
+        } catch (err) {
+            setStatus(err.message || "Sync failed.", "error");
+        } finally {
+            if (triggerButton) {
+                triggerButton.disabled = false;
+            }
+        }
+    }
+
     async function renderToday(force, silent) {
         if (!silent) {
             el.viewContainer.innerHTML = skeleton();
@@ -245,11 +295,17 @@
             var activeCalories = Number(today.active_calories_today || 0);
             var distanceMeters = Number(today.distance_today_meters || 0);
             var totalCalories = Number(today.total_calories_today_kcal || 0);
-            var latestNutrition = today.latest_nutrition;
+            var nutritionToday = today.nutrition_today;
             var latestSpO2 = today.latest_oxygen_saturation;
             var latestHrv = today.latest_hrv;
+            var nutritionEntries = Number((nutritionToday && nutritionToday.entries) || 0);
+            var nutritionCalories = Number((nutritionToday && nutritionToday.calories_kcal) || 0);
+            var nutritionProtein = Number((nutritionToday && nutritionToday.protein_g) || 0);
+            var nutritionCarbs = Number((nutritionToday && nutritionToday.carbs_g) || 0);
+            var nutritionFat = Number((nutritionToday && nutritionToday.fat_g) || 0);
+            var latestSpO2Percent = normalizePercentage(latestSpO2 && latestSpO2.percentage);
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Today</p><h3>Live health snapshot</h3></div><div class=\"view-actions\"><button id=\"todaySync\" class=\"btn btn-primary\" type=\"button\">Sync Now</button></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Today</p><h3>Live health snapshot</h3></div></section>" +
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-4\"><h4>Steps</h4><div class=\"progress-ring\" style=\"--progress:" + pct + ";\"><strong>" + pct + "%</strong></div><p class=\"metric\">" + u.formatNumber(steps) + "</p><p class=\"metric-sub\">Goal: 10,000</p></article>" +
                 "<article class=\"card span-4\"><h4>Latest HR</h4>" + (hr ? "<p class=\"metric\">" + esc(hr.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(u.formatDateTime(hr.timestamp, s.prefs)) + "</p>" : empty("No intraday HR data.")) + "</article>" +
@@ -258,25 +314,11 @@
                 "<article class=\"card span-4\"><h4>Distance</h4><p class=\"metric\">" + esc(u.formatDistanceMeters(distanceMeters)) + "</p><p class=\"metric-sub\">Today total</p></article>" +
                 "<article class=\"card span-4\"><h4>Total Calories</h4><p class=\"metric\">" + esc(u.formatNumber(Math.round(totalCalories))) + " kcal</p><p class=\"metric-sub\">Today burn</p></article>" +
                 "<article class=\"card span-6\"><h4>Resting HR</h4>" + (rhr ? "<p class=\"metric\">" + esc(rhr.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(rhr.date) + "</p>" : "<div class=\"empty-state\"><strong>Not available</strong><p>No resting HR for today.</p><a class=\"hint-link\" href=\"#\" data-reason=\"resting-hr\">Not available - Why?</a></div>") + "</article>" +
-                "<article class=\"card span-6\"><h4>Cardio Snapshot</h4><p class=\"metric-sub\">" + (latestSpO2 ? ("SpO2 " + esc((Number(latestSpO2.percentage) * 100).toFixed(1)) + "%") : "SpO2 unavailable") + "</p><p class=\"metric-sub\">" + (latestHrv ? ("HRV RMSSD " + esc(Number(latestHrv.rmssd).toFixed(1)) + " ms") : "HRV unavailable") + "</p></article>" +
-                "<article class=\"card span-6\"><h4>Nutrition Snapshot</h4>" + (latestNutrition ? "<p class=\"metric\">" + esc(u.formatNumber(Math.round(Number(latestNutrition.energy_kcal || 0)))) + " kcal</p><p class=\"metric-sub\">Protein " + esc(u.formatNumber(Math.round(Number(latestNutrition.protein_grams || 0)))) + "g | Carbs " + esc(u.formatNumber(Math.round(Number(latestNutrition.carbs_grams || 0)))) + "g | Fat " + esc(u.formatNumber(Math.round(Number(latestNutrition.fat_grams || 0)))) + "g</p>" : empty("No nutrition record for latest interval.")) + "</article>" +
+                "<article class=\"card span-6\"><h4>Cardio Snapshot</h4><p class=\"metric-sub\">" + (latestSpO2Percent !== null ? ("SpO2 " + esc(latestSpO2Percent.toFixed(1)) + "%") : "SpO2 unavailable") + "</p><p class=\"metric-sub\">" + (latestHrv ? ("HRV RMSSD " + esc(Number(latestHrv.rmssd).toFixed(1)) + " ms") : "HRV unavailable") + "</p></article>" +
+                "<article class=\"card span-6\"><h4>Nutrition Snapshot</h4>" + (nutritionEntries > 0 ? "<p class=\"metric\">" + esc(u.formatNumber(Math.round(nutritionCalories))) + " kcal</p><p class=\"metric-sub\">Protein " + esc(u.formatNumber(Math.round(nutritionProtein))) + "g | Carbs " + esc(u.formatNumber(Math.round(nutritionCarbs))) + "g | Fat " + esc(u.formatNumber(Math.round(nutritionFat))) + "g</p><p class=\"metric-sub\">" + esc(nutritionEntries) + " entries today</p>" : empty("No nutrition entries for this date.")) + "</article>" +
                 "<article class=\"card span-6\"><h4>Data Freshness</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Steps</span><span>" + esc(fresh.steps) + "</span></div><div class=\"freshness-item\"><span>Sleep</span><span>" + esc(fresh.sleep) + "</span></div><div class=\"freshness-item\"><span>Heart Rate</span><span>" + esc(fresh.heartRate) + "</span></div><div class=\"freshness-item\"><span>Resting HR</span><span>" + esc(fresh.restingHeartRate) + "</span></div><div class=\"freshness-item\"><span>Active Calories</span><span>" + esc(fresh.activeCalories) + "</span></div><div class=\"freshness-item\"><span>Distance</span><span>" + esc(fresh.distance) + "</span></div><div class=\"freshness-item\"><span>Total Calories</span><span>" + esc(fresh.totalCalories) + "</span></div><div class=\"freshness-item\"><span>Nutrition</span><span>" + esc(fresh.nutrition) + "</span></div><div class=\"freshness-item\"><span>SpO2</span><span>" + esc(fresh.oxygenSaturation) + "</span></div><div class=\"freshness-item\"><span>HRV</span><span>" + esc(fresh.hrv) + "</span></div></div></article>" +
                 "</section>";
 
-            byId("todaySync").addEventListener("click", async function () {
-                try {
-                    setStatus("Sync requested...");
-                    await api.triggerSync({ automatic: false });
-                    for (var i = 0; i < 7; i += 1) {
-                        await new Promise(function (resolve) { global.setTimeout(resolve, 2000); });
-                        updateLastSynced(data(await api.getSyncStatus(true)));
-                    }
-                    setStatus("Sync completed.");
-                    renderToday(true, true);
-                } catch (err) {
-                    setStatus(err.message || "Sync failed.", "error");
-                }
-            });
             hintLinks();
         } catch (err) {
             if (silent) {
@@ -397,14 +439,15 @@
             var latest = hr.length ? hr[hr.length - 1] : null;
             var latestHrv = hrv.length ? hrv[hrv.length - 1] : null;
             var latestSpO2 = spo2.length ? spo2[spo2.length - 1] : null;
+            var latestSpO2Percent = normalizePercentage(latestSpO2 && latestSpO2.percentage);
 
             el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Cardio</p><h3>Intraday and resting trends</h3></div></section>" +
                 "<section class=\"controls\"><div class=\"control\"><label for=\"cardioDate\">Intraday date</label><input id=\"cardioDate\" type=\"date\" value=\"" + esc(day) + "\"></div><div class=\"control\"><label for=\"cardioWindow\">Resting trend</label><select id=\"cardioWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
                 "<section class=\"card-grid\">" +
-                "<article class=\"card span-4\"><h4>Latest Reading</h4>" + (latest ? "<p class=\"metric\">" + esc(latest.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latest.timestamp, s.prefs)) + "</p>" : empty("No heart-rate data for date.")) + "</article>" +
-                "<article class=\"card span-4\"><h4>Resting HR</h4>" + (rhr.length ? "<p class=\"metric\">" + esc(rhr[rhr.length - 1].bpm) + " bpm</p><p class=\"metric-sub\">Trend window</p>" : empty("No resting trend data.")) + "</article>" +
-                "<article class=\"card span-4\"><h4>HRV</h4>" + (latestHrv ? "<p class=\"metric\">" + esc(Number(latestHrv.rmssd || 0).toFixed(1)) + " ms</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latestHrv.timestamp, s.prefs)) + "</p>" : "<div class=\"empty-state\"><strong>Not available</strong><p>No HRV points for selected date.</p><a class=\"hint-link\" href=\"#\" data-reason=\"hrv\">Not available - Why?</a></div>") + "</article>" +
-                "<article class=\"card span-4\"><h4>SpO2</h4>" + (latestSpO2 ? "<p class=\"metric\">" + esc((Number(latestSpO2.percentage || 0) * 100).toFixed(1)) + "%</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latestSpO2.timestamp, s.prefs)) + "</p>" : empty("No SpO2 points for selected date.")) + "</article>" +
+                "<article class=\"card span-3\"><h4>Latest Reading</h4>" + (latest ? "<p class=\"metric\">" + esc(latest.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latest.timestamp, s.prefs)) + "</p>" : empty("No heart-rate data for date.")) + "</article>" +
+                "<article class=\"card span-3\"><h4>Resting HR</h4>" + (rhr.length ? "<p class=\"metric\">" + esc(rhr[rhr.length - 1].bpm) + " bpm</p><p class=\"metric-sub\">Trend window</p>" : empty("No resting trend data.")) + "</article>" +
+                "<article class=\"card span-3\"><h4>HRV</h4>" + (latestHrv ? "<p class=\"metric\">" + esc(Number(latestHrv.rmssd || 0).toFixed(1)) + " ms</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latestHrv.timestamp, s.prefs)) + "</p>" : "<div class=\"empty-state\"><strong>Not available</strong><p>No HRV points for selected date.</p><a class=\"hint-link\" href=\"#\" data-reason=\"hrv\">Not available - Why?</a></div>") + "</article>" +
+                "<article class=\"card span-3\"><h4>SpO2</h4>" + (latestSpO2Percent !== null ? "<p class=\"metric\">" + esc(latestSpO2Percent.toFixed(1)) + "%</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latestSpO2.timestamp, s.prefs)) + "</p>" : empty("No SpO2 points for selected date.")) + "</article>" +
                 "<article class=\"card span-6\"><h4>Intraday Heart Rate</h4><div class=\"chart-wrap\"><canvas id=\"cardioHrChart\"></canvas></div></article>" +
                 "<article class=\"card span-6\"><h4>Resting HR Trend</h4><div class=\"chart-wrap\"><canvas id=\"cardioRestChart\"></canvas></div></article>" +
                 "<article class=\"card span-6\"><h4>HRV Trend</h4><div class=\"chart-wrap\"><canvas id=\"cardioHrvChart\"></canvas></div></article>" +
@@ -455,7 +498,7 @@
             if (spo2Trend.length) {
                 charts.line("cardioSpO2Chart", {
                     labels: spo2Trend.map(function (r) { return r.date; }),
-                    values: spo2Trend.map(function (r) { return Number(r.value || 0) * 100; }),
+                    values: spo2Trend.map(function (r) { return normalizePercentage(r.value) || 0; }),
                     animate: !silent,
                     label: "SpO2 (%)",
                     tickFormatter: function (value) { return Number(value).toFixed(0) + "%"; }
@@ -671,11 +714,11 @@
 
             el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Settings</p><h3>Preferences, security, exports</h3></div></section>" +
                 "<section class=\"settings-grid\">" +
-                "<article class=\"card\"><h4>Preferences</h4><div class=\"settings-row\"><label for=\"prefTime\">Time format</label><select id=\"prefTime\"><option value=\"12h\" " + (s.prefs.timeFormat === "12h" ? "selected" : "") + ">12-hour</option><option value=\"24h\" " + (s.prefs.timeFormat === "24h" ? "selected" : "") + ">24-hour</option></select><button id=\"savePrefs\" class=\"btn btn-primary\" type=\"button\">Save Preferences</button></div></article>" +
-                "<article class=\"card\"><h4>Security</h4><div class=\"toggle-row\"><div><strong>Passcode protection</strong><p>Disable only on trusted LANs.</p></div><button id=\"securityToggle\" type=\"button\" class=\"toggle " + (secureOn ? "is-on" : "") + "\"></button></div><form id=\"passcodeForm\" class=\"settings-row\"><label for=\"currentPass\">Current passcode (optional)</label><input id=\"currentPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\"><label for=\"newPass\">New passcode</label><input id=\"newPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\" placeholder=\"4-8 digits\"><button class=\"btn btn-secondary\" type=\"submit\">Update Passcode</button></form></article>" +
-                "<article class=\"card\"><h4>Export</h4><div class=\"settings-row\"><label for=\"expType\">Metric</label><select id=\"expType\"><option value=\"heart_rate\">Heart Rate</option><option value=\"sleep\">Sleep</option><option value=\"steps\">Steps</option><option value=\"resting_heart_rate\">Resting Heart Rate</option></select><label for=\"expFrom\">From</label><input id=\"expFrom\" type=\"date\" value=\"" + esc(defaultFrom) + "\"><label for=\"expTo\">To</label><input id=\"expTo\" type=\"date\" value=\"" + esc(defaultTo) + "\"><button id=\"expCsv\" class=\"btn btn-primary\" type=\"button\">Download CSV</button><button id=\"expAll\" class=\"btn btn-secondary\" type=\"button\">Export All Data</button></div></article>" +
-                "<article class=\"card\"><h4>App Info</h4><div class=\"app-info\"><div><span>Version</span><span>" + esc(info.app_version || "--") + "</span></div><div><span>Phone</span><span>" + esc(info.phone_name || "--") + "</span></div><div><span>IP</span><span>" + esc(info.local_ip_address || "--") + "</span></div><div><span>Uptime</span><span>" + esc(info.uptime_seconds || 0) + "s</span></div><div><span>Clients</span><span>" + esc(info.connected_clients || 0) + "</span></div></div></article>" +
-                "<article class=\"card span-12\"><h4>Permissions</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Heart Rate</span>" + badge(perm.heart_rate) + "</div><div class=\"freshness-item\"><span>Sleep</span>" + badge(perm.sleep) + "</div><div class=\"freshness-item\"><span>Steps</span>" + badge(perm.steps) + "</div><div class=\"freshness-item\"><span>Resting HR</span>" + badge(perm.resting_heart_rate) + "</div><div class=\"freshness-item\"><span>Active Calories</span>" + badge(perm.active_calories) + "</div><div class=\"freshness-item\"><span>Distance</span>" + badge(perm.distance) + "</div><div class=\"freshness-item\"><span>Total Calories</span>" + badge(perm.total_calories) + "</div><div class=\"freshness-item\"><span>Nutrition</span>" + badge(perm.nutrition) + "</div><div class=\"freshness-item\"><span>SpO2</span>" + badge(perm.oxygen_saturation) + "</div><div class=\"freshness-item\"><span>HRV</span>" + badge(perm.heart_rate_variability) + "</div><div class=\"freshness-item\"><span>History</span>" + badge(perm.history) + "</div></div></article>" +
+                "<article class=\"card settings-card\"><h4>Preferences</h4><div class=\"settings-row\"><label for=\"prefTime\">Time format</label><select id=\"prefTime\"><option value=\"12h\" " + (s.prefs.timeFormat === "12h" ? "selected" : "") + ">12-hour</option><option value=\"24h\" " + (s.prefs.timeFormat === "24h" ? "selected" : "") + ">24-hour</option></select><button id=\"savePrefs\" class=\"btn btn-primary\" type=\"button\">Save Preferences</button></div></article>" +
+                "<article class=\"card settings-card\"><h4>Security</h4><div class=\"toggle-row\"><div><strong>Passcode protection</strong><p>Disable only on trusted LANs.</p></div><button id=\"securityToggle\" type=\"button\" class=\"toggle " + (secureOn ? "is-on" : "") + "\"></button></div><form id=\"passcodeForm\" class=\"settings-row\"><label for=\"currentPass\">Current passcode (optional)</label><input id=\"currentPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\"><label for=\"newPass\">New passcode</label><input id=\"newPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\" placeholder=\"4-8 digits\"><button class=\"btn btn-secondary\" type=\"submit\">Update Passcode</button></form></article>" +
+                "<article class=\"card settings-card\"><h4>Export</h4><div class=\"settings-row\"><label for=\"expType\">Metric</label><select id=\"expType\"><option value=\"heart_rate\">Heart Rate</option><option value=\"sleep\">Sleep</option><option value=\"steps\">Steps</option><option value=\"resting_hr\">Resting Heart Rate</option><option value=\"active_calories\">Active Calories</option><option value=\"distance\">Distance</option><option value=\"total_calories\">Total Calories</option><option value=\"nutrition\">Nutrition</option><option value=\"oxygen_saturation\">SpO2</option><option value=\"hrv\">HRV</option></select><label for=\"expFrom\">From</label><input id=\"expFrom\" type=\"date\" value=\"" + esc(defaultFrom) + "\"><label for=\"expTo\">To</label><input id=\"expTo\" type=\"date\" value=\"" + esc(defaultTo) + "\"><button id=\"expCsv\" class=\"btn btn-primary\" type=\"button\">Download CSV</button><button id=\"expAll\" class=\"btn btn-secondary\" type=\"button\">Export All Data</button></div></article>" +
+                "<article class=\"card settings-card\"><h4>App Info</h4><div class=\"app-info\"><div><span>Version</span><span>" + esc(info.app_version || "--") + "</span></div><div><span>Phone</span><span>" + esc(info.phone_name || "--") + "</span></div><div><span>IP</span><span>" + esc(info.local_ip_address || "--") + "</span></div><div><span>Uptime</span><span>" + esc(info.uptime_seconds || 0) + "s</span></div><div><span>Clients</span><span>" + esc(info.connected_clients || 0) + "</span></div></div></article>" +
+                "<article class=\"card settings-card settings-card-wide\"><h4>Permissions</h4><div class=\"freshness-list\"><div class=\"freshness-item\"><span>Heart Rate</span>" + badge(perm.heart_rate) + "</div><div class=\"freshness-item\"><span>Sleep</span>" + badge(perm.sleep) + "</div><div class=\"freshness-item\"><span>Steps</span>" + badge(perm.steps) + "</div><div class=\"freshness-item\"><span>Resting HR</span>" + badge(perm.resting_heart_rate) + "</div><div class=\"freshness-item\"><span>Active Calories</span>" + badge(perm.active_calories) + "</div><div class=\"freshness-item\"><span>Distance</span>" + badge(perm.distance) + "</div><div class=\"freshness-item\"><span>Total Calories</span>" + badge(perm.total_calories) + "</div><div class=\"freshness-item\"><span>Nutrition</span>" + badge(perm.nutrition) + "</div><div class=\"freshness-item\"><span>SpO2</span>" + badge(perm.oxygen_saturation) + "</div><div class=\"freshness-item\"><span>HRV</span>" + badge(perm.heart_rate_variability) + "</div><div class=\"freshness-item\"><span>History</span>" + badge(perm.history) + "</div></div></article>" +
                 "</section>";
 
             byId("savePrefs").addEventListener("click", function () {
@@ -829,6 +872,14 @@
     }
 
     function bind() {
+        el.closeInfoModalButton.addEventListener("click", closeInfoModal);
+        el.infoModal.addEventListener("click", function (evt) {
+            var target = evt.target;
+            if (target && target.getAttribute("data-modal-close") === "true") {
+                closeInfoModal();
+            }
+        });
+
         el.loginForm.addEventListener("submit", async function (e) {
             e.preventDefault();
             var passcode = el.passcodeInput.value.trim();
@@ -872,6 +923,10 @@
             setStatus("Signed out of dashboard.");
         });
 
+        el.topbarSyncButton.addEventListener("click", function () {
+            runSyncAndRefreshActiveView(el.topbarSyncButton);
+        });
+
         el.viewNav.addEventListener("click", function (evt) {
             var t = evt.target;
             if (!t || !t.matches(".nav-item")) return;
@@ -890,14 +945,26 @@
                 render(false);
             }
         });
+
+        global.addEventListener("keydown", function (evt) {
+            if (evt.key === "Escape") {
+                closeInfoModal();
+            }
+        });
     }
 
     async function fetchVersion() {
         try {
             var info = data(await api.getServerInfo(true, true)) || {};
-            el.appVersion.textContent = info.app_version ? "v" + info.app_version : "v-";
+            el.appVersion.textContent = info.app_version ? "Version " + info.app_version : "";
+            if (el.appVersion.parentElement) {
+                el.appVersion.parentElement.style.display = info.app_version ? "" : "none";
+            }
         } catch (_err) {
-            el.appVersion.textContent = "v-";
+            el.appVersion.textContent = "";
+            if (el.appVersion.parentElement) {
+                el.appVersion.parentElement.style.display = "none";
+            }
         }
     }
 
@@ -913,15 +980,20 @@
         el.authMessage = byId("authMessage");
         el.appVersion = byId("appVersion");
         el.logoutButton = byId("logoutButton");
+        el.topbarSyncButton = byId("topbarSyncButton");
         el.viewNav = byId("viewNav");
         el.lastSyncedPill = byId("lastSyncedPill");
         el.globalStatus = byId("globalStatus");
         el.viewContainer = byId("viewContainer");
+        el.infoModal = byId("infoModal");
+        el.infoModalBody = byId("infoModalBody");
+        el.closeInfoModalButton = byId("closeInfoModalButton");
 
         var required = [
             "offlineBanner", "loginScreen", "appShell", "loginForm", "setPasscodeForm", "passcodeInput",
             "newPasscodeInput", "loginSubtitle", "authMessage", "appVersion", "logoutButton", "viewNav",
-            "lastSyncedPill", "globalStatus", "viewContainer"
+            "lastSyncedPill", "globalStatus", "viewContainer", "topbarSyncButton",
+            "infoModal", "infoModalBody", "closeInfoModalButton"
         ];
         var missingElements = required.filter(function (name) { return !el[name]; });
         if (missingElements.length) {
@@ -935,6 +1007,9 @@
         setVisible(el.appShell, false);
         setVisible(el.loginForm, true);
         setVisible(el.setPasscodeForm, false);
+        if (el.appVersion.parentElement) {
+            el.appVersion.parentElement.style.display = "none";
+        }
         setAuth("Checking server status...");
 
         bind();

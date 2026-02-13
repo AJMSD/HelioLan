@@ -499,10 +499,14 @@ class SyncEngine
                 totalCaloriesBurnedDao.deleteByHealthConnectIds(unique.map { it.healthConnectId })
                 totalCaloriesBurnedDao.upsert(unique)
             }
+            val affectedDates =
+                unique.flatMapTo(mutableSetOf()) { record ->
+                    listOf(record.startTime.toLocalDate(), record.endTime.toLocalDate())
+                }
             return PersistResult(
                 stored = unique.size,
                 deduplicated = records.size - unique.size,
-                affectedDates = unique.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+                affectedDates = affectedDates,
             )
         }
 
@@ -567,7 +571,7 @@ class SyncEngine
             return PersistResult(
                 stored = uniqueSessions.size,
                 deduplicated = records.size - uniqueSessions.size,
-                affectedDates = uniqueSessions.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+                affectedDates = uniqueSessions.mapTo(mutableSetOf()) { it.endTime.toLocalDate() },
             )
         }
 

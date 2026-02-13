@@ -16,9 +16,11 @@ import com.heliolan.data.dao.SyncCursorDao
 import com.heliolan.data.dao.TotalCaloriesBurnedDao
 import com.heliolan.data.entity.DailyAggregate
 import com.heliolan.data.entity.HeartRateSample
+import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
+import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.util.RecordType
 import com.heliolan.healthconnect.reader.HealthConnectReader
 import com.heliolan.healthconnect.reader.ReadResult
@@ -246,6 +248,35 @@ class SyncEngineTest {
 
             assertThat(result).isInstanceOf(SyncResult.Success::class.java)
             coVerify(exactly = 1) { aggregationEngine.updateAggregatesForDates(setOf(expectedDate)) }
+        }
+
+    @Test
+    fun syncAll_sleepAggregationUsesWakeDateForOvernightSessions() =
+        runTest {
+            val start = Instant.parse("2026-02-11T23:00:00Z")
+            val end = Instant.parse("2026-02-12T07:30:00Z")
+            val sleepRecords =
+                listOf(
+                    SleepSession(
+                        healthConnectId = "sleep-wake-day",
+                        startTime = start,
+                        endTime = end,
+                        durationMs = 30_600_000L,
+                        source = "test",
+                        syncedAt = end.plusSeconds(30),
+                    ),
+                )
+            val expectedWakeDate = end.atZone(ZoneId.systemDefault()).toLocalDate()
+
+            coEvery { healthConnectReader.readHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+            coEvery { healthConnectReader.readSleep(any(), any()) } returns ReadResult.Success(sleepRecords)
+            coEvery { healthConnectReader.readSteps(any(), any()) } returns ReadResult.Success(emptyList())
+            coEvery { healthConnectReader.readRestingHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+
+            val result = syncEngine.syncAll()
+
+            assertThat(result).isInstanceOf(SyncResult.Success::class.java)
+            coVerify(exactly = 1) { aggregationEngine.updateAggregatesForDates(setOf(expectedWakeDate)) }
         }
 
     @Test
@@ -569,5 +600,78 @@ class AggregationEngineTest {
             coVerify(exactly = 1) { dailyAggregateDao.deleteAll() }
             coVerify(exactly = 2) { dailyAggregateDao.deleteForDateAndType(RecordType.RESTING_HR, any()) }
             coVerify(exactly = 2) { dailyAggregateDao.upsert(any<DailyAggregate>()) }
+        }
+
+    @Test
+    fun updateAggregatesForDate_normalizesOxygenAndSumsAllTotalCaloriesIntervals() =
+        runTest {
+            val date = LocalDate.of(2026, 2, 12)
+            val dayStart = date.atStartOfDay(ZoneId.systemDefault()).toInstant()
+
+            coEvery { heartRateSampleDao.getSamplesForAggregation(any(), any()) } returns emptyList()
+            coEvery { stepsRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { sleepSessionDao.getSessionsForAggregation(any(), any()) } returns emptyList()
+            coEvery { restingHeartRateDao.getRecordsForAggregation(date, date) } returns emptyList()
+            coEvery { activeCaloriesBurnedDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { distanceRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { nutritionRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { hrvRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { totalCaloriesBurnedDao.getRecordsForAggregation(any(), any()) } returns
+                listOf(
+                    TotalCaloriesBurned(
+                        healthConnectId = "total-a",
+                        startTime = dayStart.plusSeconds(600),
+                        endTime = dayStart.plusSeconds(3600),
+                        energyKcal = 300.0,
+                        source = "source-a",
+                        syncedAt = dayStart.plusSeconds(3700),
+                    ),
+                    TotalCaloriesBurned(
+                        healthConnectId = "total-a-dup",
+                        startTime = dayStart.plusSeconds(600),
+                        endTime = dayStart.plusSeconds(3600),
+                        energyKcal = 280.0,
+                        source = "source-b",
+                        syncedAt = dayStart.plusSeconds(3701),
+                    ),
+                    TotalCaloriesBurned(
+                        healthConnectId = "total-b",
+                        startTime = dayStart.plusSeconds(7200),
+                        endTime = dayStart.plusSeconds(9000),
+                        energyKcal = 120.0,
+                        source = "source-a",
+                        syncedAt = dayStart.plusSeconds(9100),
+                    ),
+                )
+            coEvery { oxygenSaturationDao.getRecordsForAggregation(any(), any()) } returns
+                listOf(
+                    OxygenSaturation(
+                        healthConnectId = "spo2-a",
+                        timestamp = dayStart.plusSeconds(1200),
+                        percentage = 0.98,
+                        source = "source-a",
+                        syncedAt = dayStart.plusSeconds(1210),
+                    ),
+                    OxygenSaturation(
+                        healthConnectId = "spo2-b",
+                        timestamp = dayStart.plusSeconds(2200),
+                        percentage = 97.0,
+                        source = "source-a",
+                        syncedAt = dayStart.plusSeconds(2210),
+                    ),
+                )
+
+            val inserted = mutableListOf<DailyAggregate>()
+            coEvery { dailyAggregateDao.upsert(capture(inserted)) } returns Unit
+
+            aggregationEngine.updateAggregatesForDate(date)
+
+            val totalCalories = inserted.first { it.recordType == RecordType.TOTAL_CALORIES }
+            val oxygen = inserted.first { it.recordType == RecordType.OXYGEN_SATURATION }
+
+            assertThat(totalCalories.value).isWithin(0.001).of(700.0)
+            assertThat(totalCalories.max).isWithin(0.001).of(300.0)
+            assertThat(oxygen.value).isWithin(0.001).of(97.5)
+            assertThat(oxygen.max).isWithin(0.001).of(98.0)
         }
 }

@@ -13,6 +13,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.appcompat.app.AlertDialog
 import androidx.core.content.ContextCompat
+import androidx.core.view.isVisible
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import com.google.zxing.BarcodeFormat
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
     private var statusMonitorJob: Job? = null
     private var currentDashboardUrl: String? = null
     private var lastAvailability: HealthConnectAvailability? = null
+    private var currentSection: MainSection = MainSection.OVERVIEW
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -83,6 +85,8 @@ class MainActivity : ComponentActivity() {
         setContentView(binding.root)
 
         bindActions()
+        bindBottomNavigation()
+        showSection(MainSection.OVERVIEW)
 
         lifecycleScope.launch {
             refreshAvailabilityAndPermissions()
@@ -148,6 +152,44 @@ class MainActivity : ComponentActivity() {
         binding.aboutButton.setOnClickListener {
             showAboutDialog()
         }
+    }
+
+    private fun bindBottomNavigation() {
+        binding.bottomNavigation.setOnItemSelectedListener { item ->
+            when (item.itemId) {
+                R.id.nav_overview -> {
+                    showSection(MainSection.OVERVIEW)
+                    true
+                }
+
+                R.id.nav_sync -> {
+                    showSection(MainSection.SYNC)
+                    true
+                }
+
+                R.id.nav_access -> {
+                    showSection(MainSection.ACCESS)
+                    true
+                }
+
+                R.id.nav_more -> {
+                    showSection(MainSection.MORE)
+                    true
+                }
+
+                else -> false
+            }
+        }
+        binding.bottomNavigation.selectedItemId = R.id.nav_overview
+    }
+
+    private fun showSection(section: MainSection) {
+        if (currentSection == section) return
+        currentSection = section
+        binding.overviewSection.isVisible = section == MainSection.OVERVIEW
+        binding.syncSection.isVisible = section == MainSection.SYNC
+        binding.accessSection.isVisible = section == MainSection.ACCESS
+        binding.moreSection.isVisible = section == MainSection.MORE
     }
 
     private fun startStatusMonitor() {
@@ -317,6 +359,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     R.string.main_server_help_running_passcode
                 },
+                runtimeInfo.dashboardUrl,
             )
         binding.toggleDashboardButton.text = getString(R.string.main_action_stop_dashboard)
         binding.openDashboardButton.isEnabled = true
@@ -442,5 +485,12 @@ class MainActivity : ComponentActivity() {
 
             is SyncResult.Failure -> getString(R.string.main_sync_failure, error.message)
         }
+    }
+
+    private enum class MainSection {
+        OVERVIEW,
+        SYNC,
+        ACCESS,
+        MORE,
     }
 }

@@ -16,8 +16,9 @@ interface TotalCaloriesBurnedDao {
     @Query(
         """
         SELECT * FROM total_calories_burned
-        WHERE start_time BETWEEN :startTime AND :endTime
-        ORDER BY start_time DESC
+        WHERE end_time >= :startTime
+          AND start_time <= :endTime
+        ORDER BY end_time DESC
         LIMIT :limit OFFSET :offset
         """,
     )
@@ -33,8 +34,10 @@ interface TotalCaloriesBurnedDao {
 
     @Query(
         """
-        SELECT COALESCE(SUM(energy_kcal), 0.0) FROM total_calories_burned
-        WHERE start_time BETWEEN :startTime AND :endTime
+        SELECT COALESCE(SUM(energy_kcal), 0.0)
+        FROM total_calories_burned
+        WHERE end_time >= :startTime
+          AND start_time <= :endTime
         """,
     )
     fun getTotalEnergyKcal(
@@ -63,8 +66,9 @@ interface TotalCaloriesBurnedDao {
     @Query(
         """
         SELECT * FROM total_calories_burned
-        WHERE start_time BETWEEN :startTime AND :endTime
-        ORDER BY start_time ASC
+        WHERE end_time >= :startTime
+          AND start_time <= :endTime
+        ORDER BY end_time ASC
         """,
     )
     suspend fun getRecordsForAggregation(

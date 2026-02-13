@@ -1,10 +1,16 @@
 package com.heliolan.server.export
 
 import com.google.common.truth.Truth.assertThat
+import com.heliolan.data.entity.ActiveCaloriesBurned
+import com.heliolan.data.entity.DistanceRecord
 import com.heliolan.data.entity.HeartRateSample
+import com.heliolan.data.entity.HrvRecord
+import com.heliolan.data.entity.NutritionRecord
+import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
+import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.repository.HealthRepository
 import io.mockk.every
 import io.mockk.mockk
@@ -45,6 +51,12 @@ class ExportEngineTest {
                 clock = mutableClock,
                 zoneId = testZoneId,
             )
+        stubActiveCaloriesRecords(emptyList())
+        stubDistanceRecords(emptyList())
+        stubTotalCaloriesRecords(emptyList())
+        stubNutritionRecords(emptyList())
+        stubOxygenRecords(emptyList())
+        stubHrvRecords(emptyList())
     }
 
     @After
@@ -145,6 +157,12 @@ class ExportEngineTest {
                         "sleep.csv",
                         "steps.csv",
                         "resting_heart_rate.csv",
+                        "active_calories.csv",
+                        "distance.csv",
+                        "total_calories.csv",
+                        "nutrition.csv",
+                        "oxygen_saturation.csv",
+                        "hrv.csv",
                     )
 
                 val heartRateEntry = zip.getEntry("heart_rate.csv")
@@ -240,6 +258,66 @@ class ExportEngineTest {
     private fun stubRestingHeartRateRecords(records: List<RestingHeartRate>) {
         every {
             healthRepository.getRestingHeartRate(any(), any(), any(), any())
+        } answers {
+            val limit = arg<Int>(2)
+            val offset = arg<Int>(3)
+            flowOf(records.drop(offset).take(limit))
+        }
+    }
+
+    private fun stubActiveCaloriesRecords(records: List<ActiveCaloriesBurned>) {
+        every {
+            healthRepository.getActiveCaloriesBurned(any(), any(), any(), any())
+        } answers {
+            val limit = arg<Int>(2)
+            val offset = arg<Int>(3)
+            flowOf(records.drop(offset).take(limit))
+        }
+    }
+
+    private fun stubDistanceRecords(records: List<DistanceRecord>) {
+        every {
+            healthRepository.getDistanceRecords(any(), any(), any(), any())
+        } answers {
+            val limit = arg<Int>(2)
+            val offset = arg<Int>(3)
+            flowOf(records.drop(offset).take(limit))
+        }
+    }
+
+    private fun stubTotalCaloriesRecords(records: List<TotalCaloriesBurned>) {
+        every {
+            healthRepository.getTotalCaloriesBurnedRecords(any(), any(), any(), any())
+        } answers {
+            val limit = arg<Int>(2)
+            val offset = arg<Int>(3)
+            flowOf(records.drop(offset).take(limit))
+        }
+    }
+
+    private fun stubNutritionRecords(records: List<NutritionRecord>) {
+        every {
+            healthRepository.getNutritionRecords(any(), any(), any(), any())
+        } answers {
+            val limit = arg<Int>(2)
+            val offset = arg<Int>(3)
+            flowOf(records.drop(offset).take(limit))
+        }
+    }
+
+    private fun stubOxygenRecords(records: List<OxygenSaturation>) {
+        every {
+            healthRepository.getOxygenSaturationRecords(any(), any(), any(), any())
+        } answers {
+            val limit = arg<Int>(2)
+            val offset = arg<Int>(3)
+            flowOf(records.drop(offset).take(limit))
+        }
+    }
+
+    private fun stubHrvRecords(records: List<HrvRecord>) {
+        every {
+            healthRepository.getHrvRecords(any(), any(), any(), any())
         } answers {
             val limit = arg<Int>(2)
             val offset = arg<Int>(3)

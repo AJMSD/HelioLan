@@ -7,7 +7,21 @@
     <path
         android:fillColor="#FFFFFFFF"
         android:pathData="M54,16c-20.99,0 -38,17.01 -38,38s17.01,38 38,38 38,-17.01 38,-38 -17.01,-38 -38,-38z" />
+
     <path
         android:fillColor="#006C4C"
         android:pathData="M24,39h60v6h-60zM24,63h60v6h-60zM28,37h6v38h-6zM74,37h6v38h-6zM54,28a6,6 0 1,1 0,12a6,6 0 1,1 0,-12zM44,44h20l4,10h-28zM46,56h16l-2,8h-12z" />
+
+    <group
+        android:name="ropeGroup"
+        android:pivotX="54"
+        android:pivotY="54">
+        <path
+            android:fillColor="#00000000"
+            android:pathData="M54,10 C86,10 108,35 108,67"
+            android:strokeColor="#8DFFD5"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round"
+            android:strokeWidth="6" />
+    </group>
 </vector>

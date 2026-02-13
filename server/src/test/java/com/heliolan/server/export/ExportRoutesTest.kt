@@ -57,6 +57,38 @@ class ExportRoutesTest {
         }
 
     @Test
+    fun csvRoute_acceptsExpandedMetricTypeHrv() =
+        testApplication {
+            val exportEngine = mockk<ExportEngine>()
+            val csvFile = File.createTempFile("heliolan-export-hrv", ".csv")
+            csvFile.writeText("health_connect_id,rmssd_ms\nhrv-1,32.1\n")
+
+            coEvery {
+                exportEngine.exportCsv(
+                    ExportMetricType.HRV,
+                    LocalDate.of(2026, 2, 1)..LocalDate.of(2026, 2, 10),
+                )
+            } returns csvFile
+
+            application {
+                routing {
+                    registerExportRoutes(exportEngine)
+                }
+            }
+
+            val response =
+                client.get("/api/v1/export/csv") {
+                    parameter("type", "hrv")
+                    parameter("from", "2026-02-01")
+                    parameter("to", "2026-02-10")
+                }
+
+            assertThat(response.status).isEqualTo(HttpStatusCode.OK)
+            assertThat(response.bodyAsText()).contains("rmssd_ms")
+            assertThat(csvFile.exists()).isFalse()
+        }
+
+    @Test
     fun csvRoute_returnsBadRequestForInvalidDateRange() =
         testApplication {
             val exportEngine = mockk<ExportEngine>()

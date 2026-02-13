@@ -1,9 +1,15 @@
 package com.heliolan.server.export
 
+import com.heliolan.data.entity.ActiveCaloriesBurned
+import com.heliolan.data.entity.DistanceRecord
 import com.heliolan.data.entity.HeartRateSample
+import com.heliolan.data.entity.HrvRecord
+import com.heliolan.data.entity.NutritionRecord
+import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
+import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.repository.HealthRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -50,6 +56,12 @@ class ExportEngine(
                 ExportMetricType.SLEEP,
                 ExportMetricType.STEPS,
                 ExportMetricType.RESTING_HEART_RATE,
+                ExportMetricType.ACTIVE_CALORIES,
+                ExportMetricType.DISTANCE,
+                ExportMetricType.TOTAL_CALORIES,
+                ExportMetricType.NUTRITION,
+                ExportMetricType.OXYGEN_SATURATION,
+                ExportMetricType.HRV,
             )
     }
 
@@ -127,6 +139,12 @@ class ExportEngine(
                 ExportMetricType.SLEEP -> writeSleepCsv(writer, dateRange)
                 ExportMetricType.STEPS -> writeStepsCsv(writer, dateRange)
                 ExportMetricType.RESTING_HEART_RATE -> writeRestingHeartRateCsv(writer, dateRange)
+                ExportMetricType.ACTIVE_CALORIES -> writeActiveCaloriesCsv(writer, dateRange)
+                ExportMetricType.DISTANCE -> writeDistanceCsv(writer, dateRange)
+                ExportMetricType.TOTAL_CALORIES -> writeTotalCaloriesCsv(writer, dateRange)
+                ExportMetricType.NUTRITION -> writeNutritionCsv(writer, dateRange)
+                ExportMetricType.OXYGEN_SATURATION -> writeOxygenSaturationCsv(writer, dateRange)
+                ExportMetricType.HRV -> writeHrvCsv(writer, dateRange)
             }
         }
 
@@ -262,6 +280,192 @@ class ExportEngine(
         )
     }
 
+    private suspend fun writeActiveCaloriesCsv(
+        writer: BufferedWriter,
+        dateRange: ClosedRange<LocalDate>,
+    ) {
+        writer.writeCsvLine(
+            listOf(
+                "health_connect_id",
+                "date",
+                "calories_kcal",
+                "source",
+                "synced_at",
+            ),
+        )
+
+        writePagedRows(
+            fetchPage = { offset, limit ->
+                healthRepository.getActiveCaloriesBurned(
+                    startDate = dateRange.start,
+                    endDate = dateRange.endInclusive,
+                    limit = limit,
+                    offset = offset,
+                ).first()
+            },
+            writeRow = { record ->
+                writer.writeCsvLine(record.toCsvColumns())
+            },
+        )
+    }
+
+    private suspend fun writeDistanceCsv(
+        writer: BufferedWriter,
+        dateRange: ClosedRange<LocalDate>,
+    ) {
+        val (startInstant, endInstant) = toInstantBounds(dateRange)
+        writer.writeCsvLine(
+            listOf(
+                "health_connect_id",
+                "start_time",
+                "end_time",
+                "distance_meters",
+                "source",
+                "synced_at",
+            ),
+        )
+
+        writePagedRows(
+            fetchPage = { offset, limit ->
+                healthRepository.getDistanceRecords(
+                    startTime = startInstant,
+                    endTime = endInstant,
+                    limit = limit,
+                    offset = offset,
+                ).first()
+            },
+            writeRow = { record ->
+                writer.writeCsvLine(record.toCsvColumns())
+            },
+        )
+    }
+
+    private suspend fun writeTotalCaloriesCsv(
+        writer: BufferedWriter,
+        dateRange: ClosedRange<LocalDate>,
+    ) {
+        val (startInstant, endInstant) = toInstantBounds(dateRange)
+        writer.writeCsvLine(
+            listOf(
+                "health_connect_id",
+                "start_time",
+                "end_time",
+                "energy_kcal",
+                "source",
+                "synced_at",
+            ),
+        )
+
+        writePagedRows(
+            fetchPage = { offset, limit ->
+                healthRepository.getTotalCaloriesBurnedRecords(
+                    startTime = startInstant,
+                    endTime = endInstant,
+                    limit = limit,
+                    offset = offset,
+                ).first()
+            },
+            writeRow = { record ->
+                writer.writeCsvLine(record.toCsvColumns())
+            },
+        )
+    }
+
+    private suspend fun writeNutritionCsv(
+        writer: BufferedWriter,
+        dateRange: ClosedRange<LocalDate>,
+    ) {
+        val (startInstant, endInstant) = toInstantBounds(dateRange)
+        writer.writeCsvLine(
+            listOf(
+                "health_connect_id",
+                "start_time",
+                "end_time",
+                "energy_kcal",
+                "protein_grams",
+                "carbs_grams",
+                "fat_grams",
+                "meal_type",
+                "source",
+                "synced_at",
+            ),
+        )
+
+        writePagedRows(
+            fetchPage = { offset, limit ->
+                healthRepository.getNutritionRecords(
+                    startTime = startInstant,
+                    endTime = endInstant,
+                    limit = limit,
+                    offset = offset,
+                ).first()
+            },
+            writeRow = { record ->
+                writer.writeCsvLine(record.toCsvColumns())
+            },
+        )
+    }
+
+    private suspend fun writeOxygenSaturationCsv(
+        writer: BufferedWriter,
+        dateRange: ClosedRange<LocalDate>,
+    ) {
+        val (startInstant, endInstant) = toInstantBounds(dateRange)
+        writer.writeCsvLine(
+            listOf(
+                "health_connect_id",
+                "timestamp",
+                "percentage",
+                "source",
+                "synced_at",
+            ),
+        )
+
+        writePagedRows(
+            fetchPage = { offset, limit ->
+                healthRepository.getOxygenSaturationRecords(
+                    startTime = startInstant,
+                    endTime = endInstant,
+                    limit = limit,
+                    offset = offset,
+                ).first()
+            },
+            writeRow = { record ->
+                writer.writeCsvLine(record.toCsvColumns())
+            },
+        )
+    }
+
+    private suspend fun writeHrvCsv(
+        writer: BufferedWriter,
+        dateRange: ClosedRange<LocalDate>,
+    ) {
+        val (startInstant, endInstant) = toInstantBounds(dateRange)
+        writer.writeCsvLine(
+            listOf(
+                "health_connect_id",
+                "timestamp",
+                "rmssd_ms",
+                "source",
+                "synced_at",
+            ),
+        )
+
+        writePagedRows(
+            fetchPage = { offset, limit ->
+                healthRepository.getHrvRecords(
+                    startTime = startInstant,
+                    endTime = endInstant,
+                    limit = limit,
+                    offset = offset,
+                ).first()
+            },
+            writeRow = { record ->
+                writer.writeCsvLine(record.toCsvColumns())
+            },
+        )
+    }
+
     private suspend fun <T> writePagedRows(
         fetchPage: suspend (offset: Int, limit: Int) -> List<T>,
         writeRow: (T) -> Unit,
@@ -365,6 +569,67 @@ private fun RestingHeartRate.toCsvColumns(): List<String> =
         syncedAt.toString(),
     )
 
+private fun ActiveCaloriesBurned.toCsvColumns(): List<String> =
+    listOf(
+        healthConnectId,
+        date.toString(),
+        calories.toString(),
+        source,
+        syncedAt.toString(),
+    )
+
+private fun DistanceRecord.toCsvColumns(): List<String> =
+    listOf(
+        healthConnectId,
+        startTime.toString(),
+        endTime.toString(),
+        distanceMeters.toString(),
+        source,
+        syncedAt.toString(),
+    )
+
+private fun TotalCaloriesBurned.toCsvColumns(): List<String> =
+    listOf(
+        healthConnectId,
+        startTime.toString(),
+        endTime.toString(),
+        energyKcal.toString(),
+        source,
+        syncedAt.toString(),
+    )
+
+private fun NutritionRecord.toCsvColumns(): List<String> =
+    listOf(
+        healthConnectId,
+        startTime.toString(),
+        endTime.toString(),
+        energyKcal?.toString().orEmpty(),
+        proteinGrams?.toString().orEmpty(),
+        carbsGrams?.toString().orEmpty(),
+        fatGrams?.toString().orEmpty(),
+        mealType.orEmpty(),
+        source,
+        syncedAt.toString(),
+    )
+
+private fun OxygenSaturation.toCsvColumns(): List<String> =
+    listOf(
+        healthConnectId,
+        timestamp.toString(),
+        normalizeOxygenPercentage(percentage).toString(),
+        source,
+        syncedAt.toString(),
+    )
+
+private fun HrvRecord.toCsvColumns(): List<String> =
+    listOf(
+        healthConnectId,
+        timestamp.toString(),
+        rmssd.toString(),
+        source,
+        syncedAt.toString(),
+    )
+
 private fun BufferedWriter.writeCsvLine(columns: List<String>) {
     write(columns.joinToString(",") { it.escapeCsvField() })
     newLine()
@@ -377,4 +642,10 @@ private fun String.escapeCsvField(): String {
         return this
     }
     return "\"${replace("\"", "\"\"")}\""
+}
+
+private fun normalizeOxygenPercentage(rawValue: Double): Double {
+    if (!rawValue.isFinite()) return 0.0
+    val scaled = if (rawValue <= 1.0) rawValue * 100.0 else rawValue
+    return scaled.coerceIn(0.0, 100.0)
 }

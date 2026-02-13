@@ -350,6 +350,7 @@ class AggregationEngine
             updatedAt: Instant,
         ): DailyAggregate? {
             if (records.isEmpty()) return null
+
             val values = records.map { it.energyKcal }
             val total = values.sum()
             return DailyAggregate(
@@ -401,7 +402,7 @@ class AggregationEngine
             updatedAt: Instant,
         ): DailyAggregate? {
             if (records.isEmpty()) return null
-            val values = records.map { it.percentage }
+            val values = records.map { normalizeOxygenPercentage(it.percentage) }
             val avg = values.average()
             return DailyAggregate(
                 date = date,
@@ -476,4 +477,10 @@ class AggregationEngine
         }
 
         private fun Instant.toLocalDate(): LocalDate = atZone(localZoneId).toLocalDate()
+
+        private fun normalizeOxygenPercentage(rawValue: Double): Double {
+            if (!rawValue.isFinite()) return 0.0
+            val scaled = if (rawValue <= 1.0) rawValue * 100.0 else rawValue
+            return scaled.coerceIn(0.0, 100.0)
+        }
     }

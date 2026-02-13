@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="HelioLAN local dashboard for heart rate, sleep, and activity insights.">
     <title>HelioLAN Dashboard</title>
-    <link rel="stylesheet" href="/dashboard/css/style.css?v=20260210a">
+    <link rel="stylesheet" href="/dashboard/css/style.css?v=20260213b">
 </head>
 <body>
     <div class="ambient ambient-a"></div>
@@ -17,6 +17,9 @@
 
     <main id="loginScreen" class="screen login-screen">
         <section class="auth-card">
+            <div class="brand-lockup">
+                <img class="brand-mark" src="/dashboard/img/parallel-bars-mark.svg?v=20260213b" alt="HelioLAN brand mark">
+            </div>
             <p class="eyebrow">Local Network Dashboard</p>
             <h1>HelioLAN</h1>
             <p class="subtle" id="loginSubtitle">Checking server status...</p>
@@ -47,18 +50,20 @@
                 <button id="setPasscodeButton" type="submit" class="btn btn-primary">Set Passcode</button>
             </form>
             <p id="authMessage" class="message" aria-live="polite"></p>
-            <p class="build-meta"><span id="appVersion">v-</span></p>
+            <p class="build-meta"><span id="appVersion"></span></p>
         </section>
     </main>
 
     <main id="appShell" class="screen app-shell hidden" hidden>
         <header class="topbar">
             <div class="brand-wrap">
+                <img class="brand-mark brand-mark-small" src="/dashboard/img/parallel-bars-mark.svg?v=20260213b" alt="" aria-hidden="true">
                 <p class="eyebrow">HelioLAN</p>
                 <h2>Health Dashboard</h2>
             </div>
             <div class="topbar-actions">
                 <span id="lastSyncedPill" class="pill">Last synced: --</span>
+                <button id="topbarSyncButton" type="button" class="btn btn-secondary">Sync Now</button>
                 <button id="logoutButton" type="button" class="btn btn-ghost">Log out</button>
             </div>
         </header>
@@ -76,10 +81,19 @@
         <section id="viewContainer" class="view-container"></section>
     </main>
 
-    <script src="/dashboard/lib/chart.min.js?v=20260210a"></script>
-    <script src="/dashboard/js/api.js?v=20260210a"></script>
-    <script src="/dashboard/js/utils.js?v=20260210a"></script>
-    <script src="/dashboard/js/charts.js?v=20260210a"></script>
-    <script src="/dashboard/js/app.js?v=20260210a"></script>
+    <div id="infoModal" class="modal hidden" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
+        <div class="modal-backdrop" data-modal-close="true"></div>
+        <section class="modal-panel" role="document">
+            <h3 id="infoModalTitle">Why this may be unavailable</h3>
+            <p id="infoModalBody"></p>
+            <button id="closeInfoModalButton" type="button" class="btn btn-secondary">Close</button>
+        </section>
+    </div>
+
+    <script src="/dashboard/lib/chart.min.js?v=20260213b"></script>
+    <script src="/dashboard/js/api.js?v=20260213b"></script>
+    <script src="/dashboard/js/utils.js?v=20260213b"></script>
+    <script src="/dashboard/js/charts.js?v=20260213b"></script>
+    <script src="/dashboard/js/app.js?v=20260213b"></script>
 </body>
 </html>

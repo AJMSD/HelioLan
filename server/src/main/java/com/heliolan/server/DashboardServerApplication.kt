@@ -481,6 +481,14 @@ fun Application.configureDashboardApplication(
                 val latestTotalCalories = healthRepository.getLatestTotalCaloriesBurned().first()
                 val totalCaloriesToday = healthRepository.getTotalCaloriesBurned(dayStart, dayEnd).first()
                 val latestNutrition = healthRepository.getLatestNutritionRecord().first()
+                val nutritionRecordsToday =
+                    healthRepository.getNutritionRecords(
+                        startTime = dayStart,
+                        endTime = dayEnd,
+                        limit = 1000,
+                        offset = 0,
+                    ).first()
+                val nutritionToday = nutritionRecordsToday.toTotalsJson()
                 val latestOxygenSaturation = healthRepository.getLatestOxygenSaturation().first()
                 val latestHrv = healthRepository.getLatestHrvRecord().first()
                 val syncStatus = syncEngine.getSyncStatus()
@@ -500,6 +508,7 @@ fun Application.configureDashboardApplication(
                             put("total_calories_today_kcal", totalCaloriesToday)
                             put("latest_total_calories", latestTotalCalories?.toJson() ?: JsonNull)
                             put("latest_nutrition", latestNutrition?.toJson() ?: JsonNull)
+                            put("nutrition_today", nutritionToday)
                             put("latest_oxygen_saturation", latestOxygenSaturation?.toJson() ?: JsonNull)
                             put("latest_hrv", latestHrv?.toJson() ?: JsonNull)
                         },
@@ -921,7 +930,10 @@ fun Application.configureDashboardApplication(
                     meta = {
                         put("range_start", range.start.toString())
                         put("range_end", range.end.toString())
-                        put("average_percentage", average?.let { JsonPrimitive(it) } ?: JsonNull)
+                        put(
+                            "average_percentage",
+                            average?.let { JsonPrimitive(normalizeOxygenPercentage(it)) } ?: JsonNull,
+                        )
                         put("pagination", pagination.toJson(returnedCount = records.size))
                     },
                 )
@@ -1405,7 +1417,7 @@ private fun OxygenSaturation.toJson(): JsonObject =
         put("id", id)
         put("health_connect_id", healthConnectId)
         put("timestamp", timestamp.toString())
-        put("percentage", percentage)
+        put("percentage", normalizeOxygenPercentage(percentage))
         put("source", source)
         put("synced_at", syncedAt.toString())
     }
@@ -1422,16 +1434,47 @@ private fun HrvRecord.toJson(): JsonObject =
 
 private fun DailyAggregate.toJson(): JsonObject =
     buildJsonObject {
+        val isOxygenSaturation = recordType == RecordType.OXYGEN_SATURATION
         put("id", id)
         put("date", date.toString())
         put("record_type", recordType)
-        put("value", value)
+        put("value", if (isOxygenSaturation) normalizeOxygenPercentage(value) else value)
         put("count", count)
-        put("min", min?.let { JsonPrimitive(it) } ?: JsonNull)
-        put("max", max?.let { JsonPrimitive(it) } ?: JsonNull)
-        put("avg", avg?.let { JsonPrimitive(it) } ?: JsonNull)
+        put(
+            "min",
+            min?.let {
+                JsonPrimitive(if (isOxygenSaturation) normalizeOxygenPercentage(it) else it)
+            } ?: JsonNull,
+        )
+        put(
+            "max",
+            max?.let {
+                JsonPrimitive(if (isOxygenSaturation) normalizeOxygenPercentage(it) else it)
+            } ?: JsonNull,
+        )
+        put(
+            "avg",
+            avg?.let {
+                JsonPrimitive(if (isOxygenSaturation) normalizeOxygenPercentage(it) else it)
+            } ?: JsonNull,
+        )
         put("updated_at", updatedAt.toString())
     }
+
+private fun List<NutritionRecord>.toTotalsJson(): JsonObject =
+    buildJsonObject {
+        put("calories_kcal", mapNotNull { it.energyKcal }.sum())
+        put("protein_g", mapNotNull { it.proteinGrams }.sum())
+        put("carbs_g", mapNotNull { it.carbsGrams }.sum())
+        put("fat_g", mapNotNull { it.fatGrams }.sum())
+        put("entries", size)
+    }
+
+private fun normalizeOxygenPercentage(rawValue: Double): Double {
+    if (!rawValue.isFinite()) return 0.0
+    val scaled = if (rawValue <= 1.0) rawValue * 100.0 else rawValue
+    return scaled.coerceIn(0.0, 100.0)
+}
 
 private fun PaginationRequest.toJson(returnedCount: Int): JsonObject =
     buildJsonObject {

@@ -148,6 +148,42 @@ class HelioLanDaoTest {
         }
 
     @Test
+    fun sleepSessionDao_attributesOvernightSessionsToWakeDay() =
+        runTest {
+            sleepSessionDao.upsert(
+                listOf(
+                    SleepSession(
+                        healthConnectId = "sleep-overnight",
+                        startTime = Instant.parse("2026-02-11T23:00:00Z"),
+                        endTime = Instant.parse("2026-02-12T08:00:00Z"),
+                        durationMs = 32_400_000L,
+                        source = "zepp",
+                        syncedAt = Instant.parse("2026-02-12T08:01:00Z"),
+                    ),
+                    SleepSession(
+                        healthConnectId = "sleep-prior",
+                        startTime = Instant.parse("2026-02-10T23:30:00Z"),
+                        endTime = Instant.parse("2026-02-11T07:00:00Z"),
+                        durationMs = 27_000_000L,
+                        source = "zepp",
+                        syncedAt = Instant.parse("2026-02-11T07:01:00Z"),
+                    ),
+                ),
+            )
+
+            val sessions =
+                sleepSessionDao
+                    .getByDateRange(
+                        startTime = Instant.parse("2026-02-12T00:00:00Z"),
+                        endTime = Instant.parse("2026-02-12T23:59:59Z"),
+                        limit = 10,
+                        offset = 0,
+                    ).first()
+
+            assertThat(sessions.map { it.healthConnectId }).containsExactly("sleep-overnight")
+        }
+
+    @Test
     fun stepsRecordDao_totalStepsSumsOnlyWithinRequestedRange() =
         runTest {
             stepsRecordDao.upsert(
@@ -328,6 +364,48 @@ class HelioLanDaoTest {
             )
             assertThat(hrvRecordDao.getByDateRange(start, end).first()).hasSize(1)
             assertThat(hrvRecordDao.getAverageRmssd(start, end).first()).isWithin(0.0001).of(28.4)
+        }
+
+    @Test
+    fun totalCaloriesDao_includesOverlappingIntervalsAndSumsAllMatchingRows() =
+        runTest {
+            val dayStart = Instant.parse("2026-02-12T00:00:00Z")
+            val dayEnd = Instant.parse("2026-02-12T23:59:59Z")
+
+            totalCaloriesBurnedDao.upsert(
+                listOf(
+                    TotalCaloriesBurned(
+                        healthConnectId = "total-overlap",
+                        startTime = Instant.parse("2026-02-11T23:30:00Z"),
+                        endTime = Instant.parse("2026-02-12T00:30:00Z"),
+                        energyKcal = 120.0,
+                        source = "zepp",
+                        syncedAt = Instant.parse("2026-02-12T00:31:00Z"),
+                    ),
+                    TotalCaloriesBurned(
+                        healthConnectId = "total-main",
+                        startTime = Instant.parse("2026-02-12T08:00:00Z"),
+                        endTime = Instant.parse("2026-02-12T09:00:00Z"),
+                        energyKcal = 300.0,
+                        source = "zepp",
+                        syncedAt = Instant.parse("2026-02-12T09:01:00Z"),
+                    ),
+                    TotalCaloriesBurned(
+                        healthConnectId = "total-main-duplicate-source",
+                        startTime = Instant.parse("2026-02-12T08:00:00Z"),
+                        endTime = Instant.parse("2026-02-12T09:00:00Z"),
+                        energyKcal = 280.0,
+                        source = "other",
+                        syncedAt = Instant.parse("2026-02-12T09:02:00Z"),
+                    ),
+                ),
+            )
+
+            val rows = totalCaloriesBurnedDao.getByDateRange(dayStart, dayEnd, limit = 10, offset = 0).first()
+            val total = totalCaloriesBurnedDao.getTotalEnergyKcal(dayStart, dayEnd).first()
+
+            assertThat(rows).hasSize(3)
+            assertThat(total).isWithin(0.001).of(700.0)
         }
 
     @Test

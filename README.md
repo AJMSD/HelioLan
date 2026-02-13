@@ -4,9 +4,20 @@ HelioLAN is a local-first Android app that reads health data from Health Connect
 
 ## Current status
 
-- Phase 0 to Phase 11 implementation is complete.
+- Phase 0 to Phase 12 implementation is complete.
 - Security and performance implementation checklists are complete.
 - Release automation, signing support, and manual test/release checklists are in place.
+
+## Recent updates (Phase 12)
+
+- Dashboard visual refresh with improved contrast and unified green theme.
+- Cardio layout update: stat cards and charts are arranged for better large-screen readability.
+- Settings UX updates: equal-height cards, clearer controls, and improved permissions visibility.
+- "Not available - Why?" explainer modal for unavailable metrics.
+- Duplicate "Sync Now" control removed from the Today section.
+- Android app theme aligned with dashboard colors.
+- Setup guide redesigned with card-based sections and improved readability.
+- Total calories pipeline updated to page through Health Connect records and compute range sums consistently.
 
 ## Core capabilities
 

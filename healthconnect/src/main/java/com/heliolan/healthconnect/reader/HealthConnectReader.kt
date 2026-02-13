@@ -54,6 +54,10 @@ class HealthConnectReader
     constructor(
         @ApplicationContext private val context: Context,
     ) {
+        private companion object {
+            const val HEALTH_CONNECT_PAGE_SIZE = 1000
+        }
+
         private val healthConnectClient: HealthConnectClient? by lazy<HealthConnectClient?> {
             try {
                 if (HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE) {
@@ -295,17 +299,26 @@ class HealthConnectReader
         ): ReadResult<TotalCaloriesBurned> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = TotalCaloriesBurnedRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-                val response = client.readRecords(request)
-                ReadResult.Success(
-                    response.records.map { record ->
-                        HealthConnectMapper.mapTotalCaloriesBurnedRecord(record)
-                    },
-                )
+                val mapped = mutableListOf<TotalCaloriesBurned>()
+                var nextPageToken: String? = null
+
+                do {
+                    val request =
+                        ReadRecordsRequest(
+                            recordType = TotalCaloriesBurnedRecord::class,
+                            timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                            pageToken = nextPageToken,
+                            pageSize = HEALTH_CONNECT_PAGE_SIZE,
+                        )
+                    val response = client.readRecords(request)
+                    mapped +=
+                        response.records.map { record ->
+                            HealthConnectMapper.mapTotalCaloriesBurnedRecord(record)
+                        }
+                    nextPageToken = response.pageToken
+                } while (nextPageToken != null)
+
+                ReadResult.Success(mapped)
             } catch (e: SecurityException) {
                 ReadResult.PermissionDenied
             } catch (e: Exception) {

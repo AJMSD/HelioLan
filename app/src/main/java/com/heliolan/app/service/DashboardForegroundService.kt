@@ -264,7 +264,7 @@ class DashboardForegroundService : Service() {
                     NOTIFICATION_CHANNEL_NAME,
                     NotificationManager.IMPORTANCE_LOW,
                 ).apply {
-                    description = "Shows when HelioLAN dashboard is running"
+                    description = "Shows when HelioLan dashboard is running"
                     setShowBadge(false)
                 }
 

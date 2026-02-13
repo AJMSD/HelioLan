@@ -14,13 +14,13 @@ import java.time.Instant
 @Dao
 interface SleepSessionDao {
     /**
-     * Get sleep sessions within a time range, ordered by start time descending.
+     * Get sleep sessions attributed to wake-day (session end time), ordered by end time descending.
      */
     @Query(
         """
         SELECT * FROM sleep_sessions
-        WHERE start_time BETWEEN :startTime AND :endTime
-        ORDER BY start_time DESC
+        WHERE end_time BETWEEN :startTime AND :endTime
+        ORDER BY end_time DESC
         LIMIT :limit OFFSET :offset
         """,
     )
@@ -34,7 +34,7 @@ interface SleepSessionDao {
     /**
      * Get the most recent sleep session.
      */
-    @Query("SELECT * FROM sleep_sessions ORDER BY start_time DESC LIMIT 1")
+    @Query("SELECT * FROM sleep_sessions ORDER BY end_time DESC LIMIT 1")
     fun getLatest(): Flow<SleepSession?>
 
     /**
@@ -94,8 +94,8 @@ interface SleepSessionDao {
     @Query(
         """
         SELECT * FROM sleep_sessions
-        WHERE start_time BETWEEN :startTime AND :endTime
-        ORDER BY start_time ASC
+        WHERE end_time BETWEEN :startTime AND :endTime
+        ORDER BY end_time ASC
         """,
     )
     suspend fun getSessionsForAggregation(

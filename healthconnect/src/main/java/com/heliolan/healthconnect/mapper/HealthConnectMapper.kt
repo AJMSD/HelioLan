@@ -222,7 +222,7 @@ object HealthConnectMapper {
         return OxygenSaturation(
             healthConnectId = record.metadata.id,
             timestamp = record.time,
-            percentage = record.percentage.value,
+            percentage = normalizeOxygenPercentage(record.percentage.value),
             source = record.metadata.dataOrigin.packageName,
             syncedAt = syncedAt,
         )
@@ -279,5 +279,11 @@ object HealthConnectMapper {
                     "\"$key\":${value ?: "null"}"
                 }
         return if (entries.isBlank()) null else "{$entries}"
+    }
+
+    private fun normalizeOxygenPercentage(rawValue: Double): Double {
+        if (!rawValue.isFinite()) return 0.0
+        val scaled = if (rawValue <= 1.0) rawValue * 100.0 else rawValue
+        return scaled.coerceIn(0.0, 100.0)
     }
 }

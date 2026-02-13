@@ -199,7 +199,7 @@ class HealthConnectMapperTest {
         every { oxygenRecord.time } returns sampleTime
         every { oxygenRecord.percentage.value } returns 0.98
         val mappedOxygen = HealthConnectMapper.mapOxygenSaturationRecord(oxygenRecord, syncedAt)
-        assertThat(mappedOxygen.percentage).isWithin(0.0001).of(0.98)
+        assertThat(mappedOxygen.percentage).isWithin(0.0001).of(98.0)
 
         val hrvRecord = mockk<HeartRateVariabilityRmssdRecord>(relaxed = true)
         every { hrvRecord.metadata.id } returns "hrv-1"
@@ -208,5 +208,21 @@ class HealthConnectMapperTest {
         every { hrvRecord.heartRateVariabilityMillis } returns 27.3
         val mappedHrv = HealthConnectMapper.mapHrvRecord(hrvRecord, syncedAt)
         assertThat(mappedHrv.rmssd).isWithin(0.0001).of(27.3)
+    }
+
+    @Test
+    fun mapOxygenSaturationRecord_preservesAlreadyNormalizedPercentages() {
+        val syncedAt = Instant.parse("2026-02-11T08:00:00Z")
+        val sampleTime = Instant.parse("2026-02-11T06:30:00Z")
+
+        val oxygenRecord = mockk<OxygenSaturationRecord>(relaxed = true)
+        every { oxygenRecord.metadata.id } returns "spo2-2"
+        every { oxygenRecord.metadata.dataOrigin.packageName } returns "com.zepp"
+        every { oxygenRecord.time } returns sampleTime
+        every { oxygenRecord.percentage.value } returns 99.1
+
+        val mapped = HealthConnectMapper.mapOxygenSaturationRecord(oxygenRecord, syncedAt)
+
+        assertThat(mapped.percentage).isWithin(0.0001).of(99.1)
     }
 }

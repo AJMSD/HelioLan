@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">HelioLAN Parallel Bars Mark</title>
+  <desc id="desc">A stylized athlete performing on parallel bars.</desc>
+  <defs>
+    <linearGradient id="hl-bars" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2b9d67"/>
+      <stop offset="100%" stop-color="#11624a"/>
+    </linearGradient>
+  </defs>
+  <rect x="14" y="38" width="100" height="8" rx="4" fill="url(#hl-bars)"/>
+  <rect x="14" y="82" width="100" height="8" rx="4" fill="url(#hl-bars)"/>
+  <rect x="24" y="36" width="8" height="58" rx="4" fill="#1f3a2c"/>
+  <rect x="96" y="36" width="8" height="58" rx="4" fill="#1f3a2c"/>
+  <circle cx="64" cy="25" r="10" fill="#1f3a2c"/>
+  <path d="M50 44c8 4 20 4 28 0l4 10c-10 6-26 6-36 0z" fill="#1f3a2c"/>
+  <path d="M46 56h36l-4 10H50z" fill="#1f3a2c"/>
+  <path d="M45 66c7 4 31 4 38 0l-4 9c-8 5-22 5-30 0z" fill="#1f3a2c"/>
+</svg>

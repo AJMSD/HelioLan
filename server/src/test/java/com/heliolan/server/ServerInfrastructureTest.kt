@@ -232,6 +232,8 @@ class ServerInfrastructureTest {
         assertThat(indexText).contains("/dashboard/js/charts.js?v=")
         assertThat(indexText).contains("/dashboard/js/app.js?v=")
         assertThat(indexText).contains("/dashboard/lib/chart.min.js?v=")
+        assertThat(indexText).contains("id=\"topbarSyncButton\"")
+        assertThat(indexText).doesNotContain(">v-<")
         assertThat(indexText).doesNotContain("placeholder - will be implemented in Phase 8")
     }
 
@@ -357,6 +359,26 @@ class ServerInfrastructureTest {
         assertThat(apiSource).contains("ApiClient.prototype.getTotalCalories")
         assertThat(apiSource).contains("ApiClient.prototype.getNutrition")
         assertThat(apiSource).contains("ApiClient.prototype.getOxygenSaturation")
+    }
+
+    @Test
+    fun phase12DataAndUxFixes_arePresentInDashboardAndServerSources() {
+        val repoRoot = locateRepoRoot()
+        val appJsFile = File(repoRoot, "dashboard/src/main/assets/dashboard/js/app.js")
+        val appSource = appJsFile.readText()
+        val serverFile = File(repoRoot, "server/src/main/java/com/heliolan/server/DashboardServerApplication.kt")
+        val serverSource = serverFile.readText()
+
+        assertThat(appSource).contains("runSyncAndRefreshActiveView")
+        assertThat(appSource).contains("value=\\\"active_calories\\\"")
+        assertThat(appSource).contains("value=\\\"distance\\\"")
+        assertThat(appSource).contains("value=\\\"total_calories\\\"")
+        assertThat(appSource).contains("value=\\\"nutrition\\\"")
+        assertThat(appSource).contains("value=\\\"oxygen_saturation\\\"")
+        assertThat(appSource).contains("value=\\\"hrv\\\"")
+        assertThat(appSource).contains("var nutritionToday = today.nutrition_today;")
+        assertThat(serverSource).contains("put(\"nutrition_today\", nutritionToday)")
+        assertThat(serverSource).contains("normalizeOxygenPercentage")
     }
 
     @Test
