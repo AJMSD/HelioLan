@@ -624,6 +624,11 @@ button:focus-visible {
     gap: 8px;
     margin-top: 10px;
     width: 100%;
+    align-content: start;
+}
+
+.settings-row .btn {
+    align-self: start;
 }
 
 .app-info {

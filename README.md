@@ -20,6 +20,8 @@ HelioLAN is a local-first Android app that reads health data from Health Connect
 - Total calories pipeline updated to page through Health Connect records and compute range sums consistently.
 - Cardio tab now tolerates per-endpoint failures, logs failing endpoints, and still renders available metrics/charts.
 - Today total calories now uses Health Connect `ENERGY_TOTAL` aggregation for local-day totals, with raw overlap sums retained for drill-down/debug comparison.
+- Cardio SpO2 rendering now treats null/empty percentages as missing data to prevent `timestamp` null crashes in the Cardio tab.
+- Settings "Save Preferences" button styling/layout now matches other settings actions.
 - Sleep trend refresh now reprocesses both sleep start-day and wake-day to prevent stale overnight bars.
 - Cardio rendering now ignores malformed/null rows to prevent `timestamp` null crashes.
 - Setup/Main header text simplified to `HelioLan`; server help continues to show same-Wi-Fi private dashboard URL.
