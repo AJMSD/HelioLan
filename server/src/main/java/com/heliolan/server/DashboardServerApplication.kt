@@ -2,7 +2,6 @@ package com.heliolan.server
 
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import com.heliolan.data.entity.ActiveCaloriesBurned
 import com.heliolan.data.entity.DailyAggregate
 import com.heliolan.data.entity.DistanceRecord
@@ -88,7 +87,8 @@ private val json =
         prettyPrint = false
         encodeDefaults = true
     }
-private const val DASHBOARD_SERVER_TAG = "DashboardServerApi"
+private const val MAX_AUTH_REQUEST_BODY_BYTES = 4 * 1024
+private val DASHBOARD_ASSET_SEGMENT_PATTERN = Regex("^[A-Za-z0-9._-]+$")
 
 private data class PaginationRequest(
     val limit: Int,
@@ -265,7 +265,19 @@ fun Application.configureDashboardApplication(
                     }
 
                     val requestBody =
-                        call.receiveJsonBody<LoginRequest>()
+                        runCatching {
+                            call.receiveJsonBody<LoginRequest>(maxBytes = MAX_AUTH_REQUEST_BODY_BYTES)
+                        }.getOrElse { error ->
+                            if (error is RequestBodyTooLargeException) {
+                                call.respondApiError(
+                                    status = HttpStatusCode.PayloadTooLarge,
+                                    code = "REQUEST_TOO_LARGE",
+                                    message = "Request body is too large.",
+                                )
+                                return@post
+                            }
+                            throw error
+                        }
                             ?: run {
                                 call.respondApiError(
                                     status = HttpStatusCode.BadRequest,
@@ -332,7 +344,19 @@ fun Application.configureDashboardApplication(
 
                 post("/passcode") {
                     val requestBody =
-                        call.receiveJsonBody<SetPasscodeRequest>()
+                        runCatching {
+                            call.receiveJsonBody<SetPasscodeRequest>(maxBytes = MAX_AUTH_REQUEST_BODY_BYTES)
+                        }.getOrElse { error ->
+                            if (error is RequestBodyTooLargeException) {
+                                call.respondApiError(
+                                    status = HttpStatusCode.PayloadTooLarge,
+                                    code = "REQUEST_TOO_LARGE",
+                                    message = "Request body is too large.",
+                                )
+                                return@post
+                            }
+                            throw error
+                        }
                             ?: run {
                                 call.respondApiError(
                                     status = HttpStatusCode.BadRequest,
@@ -389,7 +413,19 @@ fun Application.configureDashboardApplication(
 
                 post("/open-access") {
                     val requestBody =
-                        call.receiveJsonBody<OpenAccessToggleRequest>()
+                        runCatching {
+                            call.receiveJsonBody<OpenAccessToggleRequest>(maxBytes = MAX_AUTH_REQUEST_BODY_BYTES)
+                        }.getOrElse { error ->
+                            if (error is RequestBodyTooLargeException) {
+                                call.respondApiError(
+                                    status = HttpStatusCode.PayloadTooLarge,
+                                    code = "REQUEST_TOO_LARGE",
+                                    message = "Request body is too large.",
+                                )
+                                return@post
+                            }
+                            throw error
+                        }
                             ?: run {
                                 call.respondApiError(
                                     status = HttpStatusCode.BadRequest,
@@ -570,16 +606,6 @@ fun Application.configureDashboardApplication(
                     } else {
                         null
                     }
-
-                Log.i(
-                    DASHBOARD_SERVER_TAG,
-                    "today_total_calories " +
-                        "date=$today " +
-                        "source=$totalCaloriesSource " +
-                        "aggregate_kcal=${totalCaloriesAggregateValue?.toString() ?: "unavailable"} " +
-                        "raw_overlap_kcal=$rawOverlapTotalCaloriesToday " +
-                        "history_permission_required=$aggregateHistoryPermissionRequired",
-                )
 
                 call.respondApiSuccess(
                     data =
@@ -1248,13 +1274,24 @@ internal fun resolveDashboardAssetPath(requestPath: String): String? {
             URLDecoder.decode(rawRelativePath, StandardCharsets.UTF_8.name())
         }.getOrDefault(rawRelativePath)
 
-    val normalizedRelativePath = decodedRelativePath.trim().trim('/')
+    val normalizedRelativePath =
+        decodedRelativePath
+            .replace('\\', '/')
+            .trim()
+            .trim('/')
     if (normalizedRelativePath.isBlank()) {
         return "dashboard/index.html"
     }
 
     val segments = normalizedRelativePath.split('/').filter { it.isNotBlank() }
-    if (segments.any { it == ".." }) {
+    if (
+        segments.any { segment ->
+            segment == "." ||
+                segment == ".." ||
+                segment.contains(':') ||
+                !DASHBOARD_ASSET_SEGMENT_PATTERN.matches(segment)
+        }
+    ) {
         return null
     }
 
@@ -1590,12 +1627,6 @@ private fun List<NutritionRecord>.toTotalsJson(): JsonObject =
         put("entries", size)
     }
 
-private fun normalizeOxygenPercentage(rawValue: Double): Double {
-    if (!rawValue.isFinite()) return 0.0
-    val scaled = if (rawValue <= 1.0) rawValue * 100.0 else rawValue
-    return scaled.coerceIn(0.0, 100.0)
-}
-
 private fun PaginationRequest.toJson(returnedCount: Int): JsonObject =
     buildJsonObject {
         put("limit", limit)
@@ -1787,6 +1818,8 @@ private fun io.ktor.server.application.ApplicationCall.applySecurityHeaders() {
         "Content-Security-Policy",
         "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'",
     )
+    response.header("Cross-Origin-Resource-Policy", "same-origin")
+    response.header("Cross-Origin-Opener-Policy", "same-origin")
     response.header("Referrer-Policy", "no-referrer")
 }
 
@@ -1843,9 +1876,23 @@ private fun io.ktor.server.application.ApplicationCall.clearSessionCookie(cookie
     )
 }
 
-private suspend inline fun <reified T> io.ktor.server.application.ApplicationCall.receiveJsonBody(): T? {
+private class RequestBodyTooLargeException(
+    maxBytes: Int,
+) : IllegalArgumentException("Request body exceeds ${maxBytes} bytes.")
+
+private suspend inline fun <reified T> io.ktor.server.application.ApplicationCall.receiveJsonBody(
+    maxBytes: Int,
+): T? {
+    val contentLength = request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+    if (contentLength != null && contentLength > maxBytes) {
+        throw RequestBodyTooLargeException(maxBytes)
+    }
+
     val rawBody = runCatching { receiveText() }.getOrNull()?.trim().orEmpty()
     if (rawBody.isBlank()) return null
+    if (rawBody.toByteArray(StandardCharsets.UTF_8).size > maxBytes) {
+        throw RequestBodyTooLargeException(maxBytes)
+    }
 
     val unescapedQuotes = rawBody.replace("\\\"", "\"")
     val candidates =

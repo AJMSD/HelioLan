@@ -35,16 +35,12 @@ dependencies {
     // Ktor Server
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.cio)
-    implementation(libs.ktor.server.cors)
     implementation(libs.ktor.server.compression)
-    implementation(libs.ktor.server.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.network.tls.certificates)
 
     // Serialization
     implementation(libs.kotlinx.serialization.json)
-    implementation(libs.moshi)
-    implementation(libs.moshi.kotlin)
     implementation(libs.bcrypt)
 
     // Hilt

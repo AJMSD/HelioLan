@@ -11,6 +11,7 @@ import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
 import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.repository.HealthRepository
+import com.heliolan.server.normalizeOxygenPercentage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
@@ -642,10 +643,4 @@ private fun String.escapeCsvField(): String {
         return this
     }
     return "\"${replace("\"", "\"\"")}\""
-}
-
-private fun normalizeOxygenPercentage(rawValue: Double): Double {
-    if (!rawValue.isFinite()) return 0.0
-    val scaled = if (rawValue <= 1.0) rawValue * 100.0 else rawValue
-    return scaled.coerceIn(0.0, 100.0)
 }

@@ -12,7 +12,13 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import java.time.LocalDate
+import java.time.Instant
 import java.time.format.DateTimeParseException
 
 /**
@@ -49,22 +55,31 @@ fun Route.registerExportRoutes(exportEngine: ExportEngine) {
 
             try {
                 val csvFile = exportEngine.exportCsv(exportType, dateRange)
-                call.response.header(
-                    HttpHeaders.ContentDisposition,
-                    "attachment; filename=\"${csvFile.name}\"",
-                )
-                call.respondOutputStream(contentType = ContentType.parse("text/csv")) {
-                    csvFile.inputStream().use { input ->
-                        input.copyTo(this)
+                try {
+                    call.response.header(
+                        HttpHeaders.ContentDisposition,
+                        "attachment; filename=\"${csvFile.name}\"",
+                    )
+                    call.respondOutputStream(contentType = ContentType.parse("text/csv")) {
+                        csvFile.inputStream().use { input ->
+                            input.copyTo(this)
+                        }
                     }
+                } finally {
+                    runCatching { csvFile.delete() }
                 }
-                csvFile.delete()
             } catch (rateLimitError: ExportRateLimitException) {
                 call.response.header(HttpHeaders.RetryAfter, rateLimitError.retryAfterSeconds.toString())
                 call.respondError(
                     status = HttpStatusCode.TooManyRequests,
                     code = "EXPORT_RATE_LIMITED",
                     message = rateLimitError.message ?: "Export rate limit exceeded.",
+                )
+            } catch (error: Exception) {
+                call.respondError(
+                    status = HttpStatusCode.InternalServerError,
+                    code = "EXPORT_FAILED",
+                    message = "Unable to complete CSV export.",
                 )
             }
         }
@@ -73,22 +88,31 @@ fun Route.registerExportRoutes(exportEngine: ExportEngine) {
             val dateRange = call.parseDateRange() ?: return@get
             try {
                 val zipFile = exportEngine.exportAll(dateRange)
-                call.response.header(
-                    HttpHeaders.ContentDisposition,
-                    "attachment; filename=\"${zipFile.name}\"",
-                )
-                call.respondOutputStream(contentType = ContentType.parse("application/zip")) {
-                    zipFile.inputStream().use { input ->
-                        input.copyTo(this)
+                try {
+                    call.response.header(
+                        HttpHeaders.ContentDisposition,
+                        "attachment; filename=\"${zipFile.name}\"",
+                    )
+                    call.respondOutputStream(contentType = ContentType.parse("application/zip")) {
+                        zipFile.inputStream().use { input ->
+                            input.copyTo(this)
+                        }
                     }
+                } finally {
+                    runCatching { zipFile.delete() }
                 }
-                zipFile.delete()
             } catch (rateLimitError: ExportRateLimitException) {
                 call.response.header(HttpHeaders.RetryAfter, rateLimitError.retryAfterSeconds.toString())
                 call.respondError(
                     status = HttpStatusCode.TooManyRequests,
                     code = "EXPORT_RATE_LIMITED",
                     message = rateLimitError.message ?: "Export rate limit exceeded.",
+                )
+            } catch (error: Exception) {
+                call.respondError(
+                    status = HttpStatusCode.InternalServerError,
+                    code = "EXPORT_FAILED",
+                    message = "Unable to complete export archive.",
                 )
             }
         }
@@ -138,17 +162,33 @@ private suspend fun ApplicationCall.respondError(
     code: String,
     message: String,
 ) {
-    val escapedMessage = message.replace("\"", "\\\"")
-    val escapedCode = code.replace("\"", "\\\"")
     val payload =
-        "{" +
-            "\"ok\":false," +
-            "\"error\":{\"code\":\"$escapedCode\",\"message\":\"$escapedMessage\"}," +
-            "\"meta\":{\"path\":\"${request.uri}\"}" +
-            "}"
+        buildJsonObject {
+            put("ok", JsonPrimitive(false))
+            put(
+                "error",
+                buildJsonObject {
+                    put("code", JsonPrimitive(code))
+                    put("message", JsonPrimitive(message))
+                },
+            )
+            put(
+                "meta",
+                buildJsonObject {
+                    put("path", JsonPrimitive(request.uri))
+                    put("generatedAt", JsonPrimitive(Instant.now().toString()))
+                },
+            )
+        }
     respondText(
-        text = payload,
+        text = exportJson.encodeToString(payload),
         contentType = ContentType.Application.Json,
         status = status,
     )
 }
+
+private val exportJson =
+    Json {
+        prettyPrint = false
+        encodeDefaults = true
+    }

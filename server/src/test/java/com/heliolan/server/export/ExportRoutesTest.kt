@@ -139,6 +139,34 @@ class ExportRoutesTest {
         }
 
     @Test
+    fun csvRoute_returnsStructuredServerErrorWhenExportFailsUnexpectedly() =
+        testApplication {
+            val exportEngine = mockk<ExportEngine>()
+            coEvery {
+                exportEngine.exportCsv(
+                    ExportMetricType.STEPS,
+                    LocalDate.of(2026, 2, 1)..LocalDate.of(2026, 2, 10),
+                )
+            } throws IllegalStateException("disk full")
+
+            application {
+                routing {
+                    registerExportRoutes(exportEngine)
+                }
+            }
+
+            val response =
+                client.get("/api/v1/export/csv") {
+                    parameter("type", "steps")
+                    parameter("from", "2026-02-01")
+                    parameter("to", "2026-02-10")
+                }
+
+            assertThat(response.status).isEqualTo(HttpStatusCode.InternalServerError)
+            assertThat(response.bodyAsText()).contains("\"code\":\"EXPORT_FAILED\"")
+        }
+
+    @Test
     fun csvRoute_streamsCsvFileAndSetsAttachmentHeaders() =
         testApplication {
             val exportEngine = mockk<ExportEngine>()

@@ -390,6 +390,8 @@ class ServerInfrastructureTest {
         assertThat(source).contains("X-Content-Type-Options")
         assertThat(source).contains("X-Frame-Options")
         assertThat(source).contains("Content-Security-Policy")
+        assertThat(source).contains("Cross-Origin-Resource-Policy")
+        assertThat(source).contains("Cross-Origin-Opener-Policy")
         assertThat(source).contains("Referrer-Policy")
     }
 
@@ -406,6 +408,9 @@ class ServerInfrastructureTest {
     fun resolveDashboardAssetPath_rejectsPathTraversalSegments() {
         assertThat(resolveDashboardAssetPath("/dashboard/../index.html")).isNull()
         assertThat(resolveDashboardAssetPath("/dashboard/%2e%2e/index.html")).isNull()
+        assertThat(resolveDashboardAssetPath("/dashboard/js/..\\app.js")).isNull()
+        assertThat(resolveDashboardAssetPath("/dashboard/js/%2e/app.js")).isNull()
+        assertThat(resolveDashboardAssetPath("/dashboard/js/app.js?bad=1")).isNull()
     }
 }
 
