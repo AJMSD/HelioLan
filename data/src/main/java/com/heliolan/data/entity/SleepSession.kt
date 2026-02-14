@@ -13,8 +13,11 @@ import java.time.Instant
 @Entity(
     tableName = "sleep_sessions",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_sleep_health_connect_id"),
         Index(value = ["start_time"], name = "idx_sleep_start_time"),
+        Index(value = ["end_time"], name = "idx_sleep_end_time"),
         Index(value = ["source", "start_time"], name = "idx_sleep_source_start"),
+        Index(value = ["source", "end_time"], name = "idx_sleep_source_end"),
     ],
 )
 data class SleepSession(

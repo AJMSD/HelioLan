@@ -12,6 +12,7 @@ import java.time.Instant
 @Entity(
     tableName = "distance_records",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_distance_health_connect_id"),
         Index(value = ["start_time"], name = "idx_distance_start_time"),
         Index(value = ["source", "start_time"], name = "idx_distance_source_start"),
     ],

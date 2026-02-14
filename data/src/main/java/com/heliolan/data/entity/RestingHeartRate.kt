@@ -14,6 +14,7 @@ import java.time.LocalDate
 @Entity(
     tableName = "resting_heart_rate",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_resting_hr_health_connect_id"),
         Index(value = ["date"], name = "idx_resting_hr_date"),
         Index(value = ["source", "date"], name = "idx_resting_hr_source_date"),
     ],

@@ -12,8 +12,11 @@ import java.time.Instant
 @Entity(
     tableName = "total_calories_burned",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_total_calories_health_connect_id"),
         Index(value = ["start_time"], name = "idx_total_calories_start_time"),
+        Index(value = ["end_time"], name = "idx_total_calories_end_time"),
         Index(value = ["source", "start_time"], name = "idx_total_calories_source_start"),
+        Index(value = ["source", "end_time"], name = "idx_total_calories_source_end"),
     ],
 )
 data class TotalCaloriesBurned(

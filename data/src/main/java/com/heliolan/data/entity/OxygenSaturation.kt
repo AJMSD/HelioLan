@@ -12,6 +12,7 @@ import java.time.Instant
 @Entity(
     tableName = "oxygen_saturation",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_oxygen_health_connect_id"),
         Index(value = ["timestamp"], name = "idx_oxygen_timestamp"),
         Index(value = ["source", "timestamp"], name = "idx_oxygen_source_timestamp"),
     ],

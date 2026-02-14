@@ -13,6 +13,7 @@ import java.time.LocalDate
 @Entity(
     tableName = "active_calories_burned",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_active_calories_health_connect_id"),
         Index(value = ["date"], name = "idx_active_calories_date"),
         Index(value = ["source", "date"], name = "idx_active_calories_source_date"),
     ],

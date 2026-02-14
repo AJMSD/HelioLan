@@ -12,6 +12,7 @@ import java.time.Instant
 @Entity(
     tableName = "hrv_records",
     indices = [
+        Index(value = ["health_connect_id"], name = "idx_hrv_health_connect_id"),
         Index(value = ["timestamp"], name = "idx_hrv_timestamp"),
         Index(value = ["source", "timestamp"], name = "idx_hrv_source_timestamp"),
     ],

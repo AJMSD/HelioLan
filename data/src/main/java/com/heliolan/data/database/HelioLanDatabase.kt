@@ -36,6 +36,7 @@ import com.heliolan.data.entity.TotalCaloriesBurned
  * Stores all health data synced from Health Connect.
  *
  * Version 2: Adds calories, distance, nutrition, SpO2, and HRV entities.
+ * Version 3: Adds lookup/query indexes for health_connect_id and end_time-heavy reads.
  * Migration strategy: Migrations will be added as schema evolves.
  */
 @Database(
@@ -54,7 +55,7 @@ import com.heliolan.data.entity.TotalCaloriesBurned
         DailyAggregate::class,
         SyncCursor::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 @TypeConverters(DateTimeConverters::class)
