@@ -88,6 +88,36 @@ interface HeartRateSampleDao {
     suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 
     /**
+     * Find samples for one Health Connect record ID and its sample-derived IDs.
+     */
+    @Query(
+        """
+        SELECT * FROM heart_rate_samples
+        WHERE health_connect_id = :healthConnectId
+           OR health_connect_id LIKE :idPrefixPattern ESCAPE '\'
+        """,
+    )
+    suspend fun getByHealthConnectIdOrPrefix(
+        healthConnectId: String,
+        idPrefixPattern: String,
+    ): List<HeartRateSample>
+
+    /**
+     * Delete samples for one Health Connect record ID and its sample-derived IDs.
+     */
+    @Query(
+        """
+        DELETE FROM heart_rate_samples
+        WHERE health_connect_id = :healthConnectId
+           OR health_connect_id LIKE :idPrefixPattern ESCAPE '\'
+        """,
+    )
+    suspend fun deleteByHealthConnectIdOrPrefix(
+        healthConnectId: String,
+        idPrefixPattern: String,
+    )
+
+    /**
      * Delete all samples (for testing or data reset).
      */
     @Query("DELETE FROM heart_rate_samples")

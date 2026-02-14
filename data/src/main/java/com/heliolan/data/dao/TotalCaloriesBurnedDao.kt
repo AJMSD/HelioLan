@@ -57,6 +57,9 @@ interface TotalCaloriesBurnedDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(record: TotalCaloriesBurned)
 
+    @Query("SELECT * FROM total_calories_burned WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun getByHealthConnectIds(healthConnectIds: List<String>): List<TotalCaloriesBurned>
+
     @Query("DELETE FROM total_calories_burned WHERE health_connect_id IN (:healthConnectIds)")
     suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 

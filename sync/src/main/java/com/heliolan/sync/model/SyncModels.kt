@@ -111,4 +111,5 @@ data class SyncConfig(
     val debounceSeconds: Long = 30,
     val timeoutMillis: Long = 60_000,
     val periodicSyncMinutes: Long = 15,
+    val useChangesApiForAutomaticSync: Boolean = false,
 )

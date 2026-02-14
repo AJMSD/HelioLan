@@ -70,6 +70,12 @@ interface RestingHeartRateDao {
     suspend fun upsert(record: RestingHeartRate)
 
     /**
+     * Get records by Health Connect IDs.
+     */
+    @Query("SELECT * FROM resting_heart_rate WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun getByHealthConnectIds(healthConnectIds: List<String>): List<RestingHeartRate>
+
+    /**
      * Delete records by Health Connect IDs.
      * Used by SyncEngine to replace stale data in safety windows.
      */

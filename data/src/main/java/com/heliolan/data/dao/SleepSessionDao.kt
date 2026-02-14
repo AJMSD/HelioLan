@@ -64,6 +64,12 @@ interface SleepSessionDao {
     suspend fun getByHealthConnectId(healthConnectId: String): SleepSession?
 
     /**
+     * Get sleep sessions by Health Connect IDs.
+     */
+    @Query("SELECT * FROM sleep_sessions WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun getByHealthConnectIds(healthConnectIds: List<String>): List<SleepSession>
+
+    /**
      * Upsert sleep sessions - replaces if Health Connect ID already exists.
      */
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -81,6 +87,12 @@ interface SleepSessionDao {
      */
     @Query("DELETE FROM sleep_sessions WHERE health_connect_id = :healthConnectId")
     suspend fun deleteByHealthConnectId(healthConnectId: String)
+
+    /**
+     * Delete sessions by Health Connect IDs.
+     */
+    @Query("DELETE FROM sleep_sessions WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 
     /**
      * Delete all sessions (cascade deletes stages via foreign key).

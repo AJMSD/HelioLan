@@ -20,9 +20,13 @@ import com.heliolan.data.entity.OxygenSaturation
 import com.heliolan.data.entity.RestingHeartRate
 import com.heliolan.data.entity.SleepSession
 import com.heliolan.data.entity.StepsRecord
+import com.heliolan.data.entity.SyncCursor
 import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.util.RecordType
+import com.heliolan.healthconnect.reader.ChangesTokenResult
 import com.heliolan.healthconnect.reader.HealthConnectReader
+import com.heliolan.healthconnect.reader.IncrementalChanges
+import com.heliolan.healthconnect.reader.IncrementalReadResult
 import com.heliolan.healthconnect.reader.ReadResult
 import com.heliolan.sync.model.SyncErrorCode
 import com.heliolan.sync.model.SyncResult
@@ -211,6 +215,86 @@ class SyncEngineTest {
 
             assertThat(first).isInstanceOf(SyncResult.Success::class.java)
             assertThat(second).isInstanceOf(SyncResult.Success::class.java)
+        }
+
+    @Test
+    fun syncRecordType_userTrigger_usesPolling_whenChangesApiIsEnabled() =
+        runTest {
+            syncEngine.config = syncEngine.config.copy(useChangesApiForAutomaticSync = true)
+            coEvery { syncCursorDao.getCursor(RecordType.HEART_RATE) } returns
+                SyncCursor(
+                    recordType = RecordType.HEART_RATE,
+                    lastSyncTime = Instant.now().minusSeconds(60),
+                    changeToken = "token-1",
+                )
+            coEvery { healthConnectReader.readHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+
+            val result = syncEngine.syncRecordType(recordType = RecordType.HEART_RATE, trigger = SyncTrigger.USER)
+
+            assertThat(result).isInstanceOf(SyncResult.Success::class.java)
+            coVerify(exactly = 1) { healthConnectReader.readHeartRate(any(), any()) }
+            coVerify(exactly = 0) { healthConnectReader.readHeartRateChanges(any()) }
+        }
+
+    @Test
+    fun syncRecordType_automatic_usesChanges_whenTokenExists() =
+        runTest {
+            syncEngine.config = syncEngine.config.copy(useChangesApiForAutomaticSync = true)
+            coEvery { syncCursorDao.getCursor(RecordType.HEART_RATE) } returns
+                SyncCursor(
+                    recordType = RecordType.HEART_RATE,
+                    lastSyncTime = Instant.now().minusSeconds(60),
+                    changeToken = "token-1",
+                )
+            coEvery { healthConnectReader.readHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+            coEvery { healthConnectReader.readHeartRateChanges("token-1") } returns
+                IncrementalReadResult.Success(
+                    IncrementalChanges(
+                        upserted =
+                            listOf(
+                                HeartRateSample(
+                                    healthConnectId = "hr-1",
+                                    timestamp = Instant.now(),
+                                    bpm = 72,
+                                    source = "test",
+                                    syncedAt = Instant.now(),
+                                ),
+                            ),
+                        deletedRecordIds = emptyList(),
+                        nextChangesToken = "token-2",
+                    ),
+                )
+
+            val result =
+                syncEngine.syncRecordType(
+                    recordType = RecordType.HEART_RATE,
+                    trigger = SyncTrigger.AUTOMATIC,
+                )
+
+            assertThat(result).isInstanceOf(SyncResult.Success::class.java)
+            coVerify(exactly = 1) { healthConnectReader.readHeartRateChanges("token-1") }
+            coVerify(exactly = 0) { healthConnectReader.readHeartRate(any(), any()) }
+        }
+
+    @Test
+    fun syncRecordType_automatic_fallsBackToPolling_whenTokenMissing() =
+        runTest {
+            syncEngine.config = syncEngine.config.copy(useChangesApiForAutomaticSync = true)
+            coEvery { syncCursorDao.getCursor(RecordType.HEART_RATE) } returns null
+            coEvery { healthConnectReader.getChangesTokenForRecordType(RecordType.HEART_RATE) } returns
+                ChangesTokenResult.Success("token-bootstrap")
+            coEvery { healthConnectReader.readHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
+
+            val result =
+                syncEngine.syncRecordType(
+                    recordType = RecordType.HEART_RATE,
+                    trigger = SyncTrigger.AUTOMATIC,
+                )
+
+            assertThat(result).isInstanceOf(SyncResult.Success::class.java)
+            coVerify(exactly = 1) { healthConnectReader.getChangesTokenForRecordType(RecordType.HEART_RATE) }
+            coVerify(exactly = 1) { healthConnectReader.readHeartRate(any(), any()) }
+            coVerify(exactly = 0) { healthConnectReader.readHeartRateChanges(any()) }
         }
 
     @Test

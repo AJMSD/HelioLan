@@ -54,6 +54,9 @@ interface DistanceRecordDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(record: DistanceRecord)
 
+    @Query("SELECT * FROM distance_records WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun getByHealthConnectIds(healthConnectIds: List<String>): List<DistanceRecord>
+
     @Query("DELETE FROM distance_records WHERE health_connect_id IN (:healthConnectIds)")
     suspend fun deleteByHealthConnectIds(healthConnectIds: List<String>)
 

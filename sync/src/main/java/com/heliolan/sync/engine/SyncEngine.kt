@@ -24,7 +24,9 @@ import com.heliolan.data.entity.StepsRecord
 import com.heliolan.data.entity.SyncCursor
 import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.data.util.RecordType
+import com.heliolan.healthconnect.reader.ChangesTokenResult
 import com.heliolan.healthconnect.reader.HealthConnectReader
+import com.heliolan.healthconnect.reader.IncrementalReadResult
 import com.heliolan.healthconnect.reader.ReadResult
 import com.heliolan.sync.model.RecordSyncSummary
 import com.heliolan.sync.model.SyncConfig
@@ -97,7 +99,7 @@ class SyncEngine
 
         val progress: SharedFlow<SyncProgress> = progressUpdates.asSharedFlow()
 
-        val config: SyncConfig = SyncConfig()
+        var config: SyncConfig = SyncConfig()
 
         suspend fun getSyncStatus(): List<SyncCursor> = syncCursorDao.getAllCursors()
 
@@ -148,7 +150,7 @@ class SyncEngine
                         val errors = mutableListOf<SyncError>()
 
                         for (recordType in recordTypes) {
-                            when (val outcome = syncOneRecordType(recordType, windowMode)) {
+                            when (val outcome = syncOneRecordType(recordType, windowMode, trigger)) {
                                 is TypeSyncOutcome.Success -> summaries += outcome.summary
                                 is TypeSyncOutcome.Failure -> errors += outcome.error
                             }
@@ -183,6 +185,7 @@ class SyncEngine
         private suspend fun syncOneRecordType(
             recordType: String,
             windowMode: SyncWindowMode,
+            trigger: SyncTrigger,
         ): TypeSyncOutcome {
             if (!SUPPORTED_RECORD_TYPES.contains(recordType)) {
                 return TypeSyncOutcome.Failure(
@@ -198,6 +201,31 @@ class SyncEngine
             emitProgress(recordType, SyncProgressState.STARTED, message = "Preparing sync")
 
             val cursor = syncCursorDao.getCursor(recordType)
+            val shouldUseChanges = config.useChangesApiForAutomaticSync && trigger != SyncTrigger.USER
+            return if (shouldUseChanges) {
+                syncOneRecordTypeWithChanges(
+                    recordType = recordType,
+                    typeStartedAt = typeStartedAt,
+                    cursor = cursor,
+                    windowMode = windowMode,
+                )
+            } else {
+                syncOneRecordTypeWithPolling(
+                    recordType = recordType,
+                    typeStartedAt = typeStartedAt,
+                    cursor = cursor,
+                    windowMode = windowMode,
+                )
+            }
+        }
+
+        private suspend fun syncOneRecordTypeWithPolling(
+            recordType: String,
+            typeStartedAt: Instant,
+            cursor: SyncCursor?,
+            windowMode: SyncWindowMode,
+            changeTokenOverride: String? = cursor?.changeToken,
+        ): TypeSyncOutcome {
             val endTime = Instant.now()
             val startTime = resolveReadStart(cursor, windowMode, endTime, recordType)
             emitProgress(recordType, SyncProgressState.READING, message = "Reading Health Connect")
@@ -209,6 +237,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readHeartRate(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistHeartRate(records)
                     }
@@ -220,6 +249,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readSleep(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistSleepSessions(records)
                     }
@@ -231,6 +261,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readSteps(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistSteps(records)
                     }
@@ -242,6 +273,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readRestingHeartRate(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistRestingHeartRate(records)
                     }
@@ -253,6 +285,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readActiveCaloriesBurned(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistActiveCalories(records)
                     }
@@ -264,6 +297,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readDistance(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistDistance(records)
                     }
@@ -275,6 +309,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readTotalCaloriesBurned(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistTotalCalories(records)
                     }
@@ -286,6 +321,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readNutrition(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistNutrition(records)
                     }
@@ -297,6 +333,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readOxygenSaturation(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistOxygenSaturation(records)
                     }
@@ -308,6 +345,7 @@ class SyncEngine
                         typeStartedAt = typeStartedAt,
                         existingCursor = cursor,
                         readResult = healthConnectReader.readHrv(startTime, endTime),
+                        changeTokenOverride = changeTokenOverride,
                     ) { records ->
                         persistHrv(records)
                     }
@@ -325,11 +363,311 @@ class SyncEngine
             }
         }
 
+        private suspend fun syncOneRecordTypeWithChanges(
+            recordType: String,
+            typeStartedAt: Instant,
+            cursor: SyncCursor?,
+            windowMode: SyncWindowMode,
+        ): TypeSyncOutcome {
+            val existingToken = cursor?.changeToken
+            if (existingToken.isNullOrBlank()) {
+                emitProgress(
+                    recordType = recordType,
+                    state = SyncProgressState.READING,
+                    message = "No changes token yet, bootstrapping with polling",
+                )
+                val bootstrapToken = tryGetChangesToken(recordType)
+                return syncOneRecordTypeWithPolling(
+                    recordType = recordType,
+                    typeStartedAt = typeStartedAt,
+                    cursor = cursor,
+                    windowMode = windowMode,
+                    changeTokenOverride = bootstrapToken,
+                )
+            }
+
+            emitProgress(recordType, SyncProgressState.READING, message = "Reading Health Connect changes")
+            return when (recordType) {
+                RecordType.HEART_RATE -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readHeartRateChanges(existingToken),
+                        persistRecords = { records -> persistHeartRate(records) },
+                        deleteRecords = { recordIds -> deleteHeartRate(recordIds) },
+                    )
+                }
+
+                RecordType.SLEEP -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readSleepChanges(existingToken),
+                        persistRecords = { records -> persistSleepSessions(records) },
+                        deleteRecords = { recordIds -> deleteSleep(recordIds) },
+                    )
+                }
+
+                RecordType.STEPS -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readStepsChanges(existingToken),
+                        persistRecords = { records -> persistSteps(records) },
+                        deleteRecords = { recordIds -> deleteSteps(recordIds) },
+                    )
+                }
+
+                RecordType.RESTING_HR -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readRestingHeartRateChanges(existingToken),
+                        persistRecords = { records -> persistRestingHeartRate(records) },
+                        deleteRecords = { recordIds -> deleteRestingHeartRate(recordIds) },
+                    )
+                }
+
+                RecordType.ACTIVE_CALORIES -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readActiveCaloriesChanges(existingToken),
+                        persistRecords = { records -> persistActiveCalories(records) },
+                        deleteRecords = { recordIds -> deleteActiveCalories(recordIds) },
+                    )
+                }
+
+                RecordType.DISTANCE -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readDistanceChanges(existingToken),
+                        persistRecords = { records -> persistDistance(records) },
+                        deleteRecords = { recordIds -> deleteDistance(recordIds) },
+                    )
+                }
+
+                RecordType.TOTAL_CALORIES -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readTotalCaloriesChanges(existingToken),
+                        persistRecords = { records -> persistTotalCalories(records) },
+                        deleteRecords = { recordIds -> deleteTotalCalories(recordIds) },
+                    )
+                }
+
+                RecordType.NUTRITION -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readNutritionChanges(existingToken),
+                        persistRecords = { records -> persistNutrition(records) },
+                        deleteRecords = { recordIds -> deleteNutrition(recordIds) },
+                    )
+                }
+
+                RecordType.OXYGEN_SATURATION -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readOxygenSaturationChanges(existingToken),
+                        persistRecords = { records -> persistOxygenSaturation(records) },
+                        deleteRecords = { recordIds -> deleteOxygenSaturation(recordIds) },
+                    )
+                }
+
+                RecordType.HRV -> {
+                    processIncrementalReadResult(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        incrementalReadResult = healthConnectReader.readHrvChanges(existingToken),
+                        persistRecords = { records -> persistHrv(records) },
+                        deleteRecords = { recordIds -> deleteHrv(recordIds) },
+                    )
+                }
+
+                else -> {
+                    TypeSyncOutcome.Failure(
+                        SyncError(
+                            recordType = recordType,
+                            code = SyncErrorCode.UNSUPPORTED_RECORD_TYPE,
+                            message = "Record type '$recordType' is not supported.",
+                        ),
+                    )
+                }
+            }
+        }
+
+        private suspend fun tryGetChangesToken(recordType: String): String? {
+            return when (val result = healthConnectReader.getChangesTokenForRecordType(recordType)) {
+                is ChangesTokenResult.Success -> result.token
+                else -> null
+            }
+        }
+
+        private suspend fun <T> processIncrementalReadResult(
+            recordType: String,
+            typeStartedAt: Instant,
+            cursor: SyncCursor?,
+            windowMode: SyncWindowMode,
+            incrementalReadResult: IncrementalReadResult<T>,
+            persistRecords: suspend (List<T>) -> PersistResult,
+            deleteRecords: suspend (List<String>) -> DeleteResult,
+        ): TypeSyncOutcome {
+            return when (incrementalReadResult) {
+                is IncrementalReadResult.Success -> {
+                    try {
+                        val incrementalData = incrementalReadResult.data
+                        emitProgress(
+                            recordType = recordType,
+                            state = SyncProgressState.WRITING,
+                            fetched = incrementalData.upserted.size,
+                            message = "Persisting incremental data",
+                        )
+
+                        val persistResult = persistRecords(incrementalData.upserted)
+                        val deleteResult = deleteRecords(incrementalData.deletedRecordIds)
+                        val affectedDates = persistResult.affectedDates + deleteResult.affectedDates
+                        val combinedPersistResult = persistResult.copy(affectedDates = affectedDates)
+
+                        val completedAt = Instant.now()
+                        syncCursorDao.upsert(
+                            SyncCursor(
+                                recordType = recordType,
+                                lastSyncTime = completedAt,
+                                changeToken = incrementalData.nextChangesToken,
+                            ),
+                        )
+                        refreshAggregates(
+                            recordType = recordType,
+                            fetched = incrementalData.upserted.size + deleteResult.deleted,
+                            persistResult = combinedPersistResult,
+                        )
+
+                        val completionMessage =
+                            if (deleteResult.deleted == 0) {
+                                "Sync complete"
+                            } else {
+                                "Sync complete (${deleteResult.deleted} deletions)"
+                            }
+
+                        emitProgress(
+                            recordType = recordType,
+                            state = SyncProgressState.COMPLETED,
+                            fetched = incrementalData.upserted.size + deleteResult.deleted,
+                            stored = persistResult.stored,
+                            message = completionMessage,
+                        )
+
+                        TypeSyncOutcome.Success(
+                            RecordSyncSummary(
+                                recordType = recordType,
+                                fetched = incrementalData.upserted.size + deleteResult.deleted,
+                                stored = persistResult.stored,
+                                deduplicated = persistResult.deduplicated,
+                                startedAt = typeStartedAt,
+                                completedAt = completedAt,
+                            ),
+                        )
+                    } catch (writeError: Exception) {
+                        val syncError =
+                            SyncError(
+                                recordType = recordType,
+                                code = SyncErrorCode.WRITE_FAILED,
+                                message = "Failed to store $recordType changes: ${writeError.message}",
+                                throwable = writeError,
+                            )
+                        emitProgress(
+                            recordType = recordType,
+                            state = SyncProgressState.FAILED,
+                            message = syncError.message,
+                        )
+                        TypeSyncOutcome.Failure(syncError)
+                    }
+                }
+
+                is IncrementalReadResult.TokenExpired -> {
+                    emitProgress(
+                        recordType = recordType,
+                        state = SyncProgressState.READING,
+                        message = "Changes token expired, falling back to polling",
+                    )
+                    val refreshedToken = tryGetChangesToken(recordType)
+                    syncOneRecordTypeWithPolling(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                        changeTokenOverride = refreshedToken,
+                    )
+                }
+
+                is IncrementalReadResult.Error -> {
+                    emitProgress(
+                        recordType = recordType,
+                        state = SyncProgressState.READING,
+                        message = "Changes read failed, falling back to polling",
+                    )
+                    syncOneRecordTypeWithPolling(
+                        recordType = recordType,
+                        typeStartedAt = typeStartedAt,
+                        cursor = cursor,
+                        windowMode = windowMode,
+                    )
+                }
+
+                is IncrementalReadResult.PermissionDenied -> {
+                    val error =
+                        SyncError(
+                            recordType = recordType,
+                            code = SyncErrorCode.PERMISSION_DENIED,
+                            message = "Permission denied for $recordType",
+                        )
+                    emitProgress(recordType, SyncProgressState.FAILED, message = error.message)
+                    TypeSyncOutcome.Failure(error)
+                }
+
+                is IncrementalReadResult.HealthConnectUnavailable -> {
+                    val error =
+                        SyncError(
+                            recordType = recordType,
+                            code = SyncErrorCode.HEALTH_CONNECT_UNAVAILABLE,
+                            message = "Health Connect unavailable for $recordType",
+                        )
+                    emitProgress(recordType, SyncProgressState.FAILED, message = error.message)
+                    TypeSyncOutcome.Failure(error)
+                }
+            }
+        }
+
         private suspend fun <T> processReadResult(
             recordType: String,
             typeStartedAt: Instant,
             existingCursor: SyncCursor?,
             readResult: ReadResult<T>,
+            changeTokenOverride: String? = existingCursor?.changeToken,
             persistRecords: suspend (List<T>) -> PersistResult,
         ): TypeSyncOutcome {
             return when (readResult) {
@@ -348,7 +686,7 @@ class SyncEngine
                             SyncCursor(
                                 recordType = recordType,
                                 lastSyncTime = completedAt,
-                                changeToken = existingCursor?.changeToken,
+                                changeToken = changeTokenOverride,
                             ),
                         )
                         refreshAggregates(
@@ -426,6 +764,172 @@ class SyncEngine
                     TypeSyncOutcome.Failure(error)
                 }
             }
+        }
+
+        private suspend fun deleteHeartRate(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val affectedDates = mutableSetOf<LocalDate>()
+            var deleted = 0
+            uniqueIds.forEach { recordId ->
+                val prefixPattern = toRecordIdPrefixPattern(recordId)
+                val existing =
+                    heartRateSampleDao.getByHealthConnectIdOrPrefix(
+                        healthConnectId = recordId,
+                        idPrefixPattern = prefixPattern,
+                    )
+                if (existing.isEmpty()) return@forEach
+
+                heartRateSampleDao.deleteByHealthConnectIdOrPrefix(
+                    healthConnectId = recordId,
+                    idPrefixPattern = prefixPattern,
+                )
+                affectedDates += existing.map { it.timestamp.toLocalDate() }
+                deleted += existing.size
+            }
+            return DeleteResult(deleted = deleted, affectedDates = affectedDates)
+        }
+
+        private suspend fun deleteSleep(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = sleepSessionDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                sleepSessionDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates =
+                    existing.flatMapTo(mutableSetOf()) { session ->
+                        listOf(session.startTime.toLocalDate(), session.endTime.toLocalDate())
+                    },
+            )
+        }
+
+        private suspend fun deleteSteps(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = stepsRecordDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                stepsRecordDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+            )
+        }
+
+        private suspend fun deleteRestingHeartRate(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = restingHeartRateDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                restingHeartRateDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.date },
+            )
+        }
+
+        private suspend fun deleteActiveCalories(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = activeCaloriesBurnedDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                activeCaloriesBurnedDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.date },
+            )
+        }
+
+        private suspend fun deleteDistance(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = distanceRecordDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                distanceRecordDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+            )
+        }
+
+        private suspend fun deleteTotalCalories(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = totalCaloriesBurnedDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                totalCaloriesBurnedDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates =
+                    existing.flatMapTo(mutableSetOf()) { record ->
+                        listOf(record.startTime.toLocalDate(), record.endTime.toLocalDate())
+                    },
+            )
+        }
+
+        private suspend fun deleteNutrition(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = nutritionRecordDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                nutritionRecordDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.startTime.toLocalDate() },
+            )
+        }
+
+        private suspend fun deleteOxygenSaturation(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = oxygenSaturationDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                oxygenSaturationDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.timestamp.toLocalDate() },
+            )
+        }
+
+        private suspend fun deleteHrv(recordIds: List<String>): DeleteResult {
+            val uniqueIds = recordIds.distinct()
+            if (uniqueIds.isEmpty()) return DeleteResult(deleted = 0, affectedDates = emptySet())
+
+            val existing = hrvRecordDao.getByHealthConnectIds(uniqueIds)
+            if (existing.isNotEmpty()) {
+                hrvRecordDao.deleteByHealthConnectIds(uniqueIds)
+            }
+            return DeleteResult(
+                deleted = existing.size,
+                affectedDates = existing.mapTo(mutableSetOf()) { it.timestamp.toLocalDate() },
+            )
+        }
+
+        private fun toRecordIdPrefixPattern(recordId: String): String {
+            val escaped =
+                recordId
+                    .replace("\\", "\\\\")
+                    .replace("%", "\\%")
+                    .replace("_", "\\_")
+            return "${escaped}\\_%"
         }
 
         private suspend fun persistHeartRate(records: List<HeartRateSample>): PersistResult {
@@ -661,6 +1165,11 @@ class SyncEngine
 private data class PersistResult(
     val stored: Int,
     val deduplicated: Int,
+    val affectedDates: Set<LocalDate>,
+)
+
+private data class DeleteResult(
+    val deleted: Int,
     val affectedDates: Set<LocalDate>,
 )
 

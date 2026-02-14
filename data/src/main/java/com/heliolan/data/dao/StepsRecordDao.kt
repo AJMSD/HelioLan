@@ -78,6 +78,12 @@ interface StepsRecordDao {
     suspend fun upsert(record: StepsRecord)
 
     /**
+     * Get records by Health Connect IDs.
+     */
+    @Query("SELECT * FROM steps_records WHERE health_connect_id IN (:healthConnectIds)")
+    suspend fun getByHealthConnectIds(healthConnectIds: List<String>): List<StepsRecord>
+
+    /**
      * Delete records by Health Connect IDs.
      * Used by SyncEngine to replace stale data in safety windows.
      */
