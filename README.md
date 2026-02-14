@@ -1,74 +1,67 @@
 # HelioLAN
 
-HelioLAN is a local-first Android app that reads health data from Health Connect and serves a LAN dashboard for browser access on your Wi-Fi network.
+HelioLAN lets you see your phone health data on a laptop browser over your home Wi-Fi. It is built for quick daily check-ins and sharing a bigger screen view.
 
-## Current status
+## What You Need
 
-- Phase 0 to Phase 12 implementation is complete.
-- Security and performance implementation checklists are complete.
-- Release automation, signing support, and manual test/release checklists are in place.
+- Android phone
+- Zepp app connected to your watch/band
+- Health Connect on your phone
+- Laptop (or desktop) with a web browser
+- Phone and laptop on the same Wi-Fi
 
-## Recent updates (Phase 12)
+## Setup
 
-- Dashboard visual refresh with improved contrast and unified green theme.
-- Cardio layout update: stat cards and charts are arranged for better large-screen readability.
-- Settings UX updates: equal-height cards, clearer controls, and improved permissions visibility.
-- "Not available - Why?" explainer modal for unavailable metrics.
-- Duplicate "Sync Now" control removed from the Today section.
-- Android app theme aligned with dashboard colors.
-- Setup guide redesigned with card-based sections and improved readability.
-- Total calories pipeline updated to page through Health Connect records and compute range sums consistently.
-- Cardio tab now tolerates per-endpoint failures, logs failing endpoints, and still renders available metrics/charts.
-- Today total calories now uses Health Connect `ENERGY_TOTAL` aggregation for local-day totals, with raw overlap sums retained for drill-down/debug comparison.
-- Cardio SpO2 rendering now treats null/empty percentages as missing data to prevent `timestamp` null crashes in the Cardio tab.
-- Settings "Save Preferences" button styling/layout now matches other settings actions.
-- Sleep trend refresh now reprocesses both sleep start-day and wake-day to prevent stale overnight bars.
-- Cardio rendering now ignores malformed/null rows to prevent `timestamp` null crashes.
-- Setup/Main header text simplified to `HelioLan`; server help continues to show same-Wi-Fi private dashboard URL.
-- Splash updated to green jump-rope animation styling and force-dark overrides disabled for consistent colors.
+1. Install and open HelioLAN on your Android phone.
+2. Follow the in-app setup screen from top to bottom.
+3. Open Zepp and make sure your latest data has synced.
+4. Return to HelioLAN and allow the requested Health Connect access.
+5. Set a 4-8 digit passcode when prompted (recommended).
+6. Tap to start the dashboard in HelioLAN.
+7. Wait until HelioLAN shows a dashboard web address.
 
-## Core capabilities
+## Permissions (What to Allow and Why)
 
-- Health Connect ingestion (heart rate, sleep, steps, resting HR, HRV, calories, distance, nutrition, SpO2)
-- Incremental sync pipeline with aggregation and data freshness tracking
-- Embedded Ktor dashboard server with LAN security hardening
-- Optional passcode authentication and optional local TLS mode
-- CSV and ZIP exports
-- Dashboard frontend bundled in-app (no CDN dependencies)
+- Health data access: lets HelioLAN read your steps, heart, sleep, and related health stats.
+- Background run permission (if asked): keeps the dashboard available while your phone screen is off.
+- Network access: lets your laptop open the dashboard from your phone.
 
-## Project modules
+If you deny a permission, that part of the dashboard can appear empty.
 
-- `app`: Android shell, setup flow, lifecycle, foreground service, release packaging
-- `data`: Room entities/DAOs/repositories, SQLCipher integration
-- `healthconnect`: permission management and record readers/mappers
-- `sync`: sync scheduling, incremental sync engine, aggregation engine
-- `server`: embedded Ktor server, API routes, auth/security middleware, export routes
-- `dashboard`: static dashboard assets and minification build step
+## Open It on Your Laptop
 
-## Quick start
+1. Keep HelioLAN open on your phone and make sure the dashboard is running.
+2. On your laptop browser, enter the web address shown in HelioLAN.
+3. If HelioLAN shows a QR code, you can scan it instead.
+4. Enter your passcode if asked.
 
-1. Install Android Studio + SDK 35 + JDK 17.
-2. Copy `local.properties.template` to `local.properties` and set `sdk.dir`.
-3. Build and run checks:
+"Same Wi-Fi" means both devices are connected to the same home router/network name.
 
-```bash
-./gradlew assembleDebug testDebugUnitTest lintDebug ktlintCheck detekt
-```
+## How to Tell It's Working
 
-4. Install debug build:
+- You can open the dashboard page on your laptop.
+- You can sign in with your passcode (if enabled).
+- The "Last synced" time updates.
+- You can see values on Today, Sleep, Cardio, Activity, and Nutrition.
 
-```bash
-./gradlew installDebug
-```
+## Troubleshooting
 
-## Release
+- Symptom: Laptop cannot open the page.
+  Fix: Check both devices are on the same Wi-Fi and HelioLAN is still running on the phone.
 
-- Release process and signing setup: `RELEASE.md`
-- Manual test matrix: `MANUAL_TEST_MATRIX.md`
-- End-user APK install steps: `INSTALLATION.md`
+- Symptom: Login keeps failing.
+  Fix: Re-enter the passcode you set in HelioLAN. If needed, update passcode in Settings.
 
-## CI
+- Symptom: Dashboard opens but shows little/no data.
+  Fix: Open Zepp first, let it sync, then run sync again in HelioLAN.
 
-- `.github/workflows/android-ci.yml`: debug build, tests, lint, and release/R8 verification
-- `.github/workflows/release-apk.yml`: release APK build and GitHub Release publishing
-- `.github/workflows/device-matrix.yml`: 3-device emulator instrumentation matrix (manual trigger)
+- Symptom: Some cards say data is unavailable.
+  Fix: Re-check Health Connect permissions in HelioLAN and try sync again.
+
+- Symptom: Dashboard stops after a while.
+  Fix: Keep HelioLAN running and disable battery-saving restrictions for the app.
+
+## Privacy Promise
+
+By default, HelioLAN keeps your data on your phone and your local Wi-Fi network. Nothing is sent to outside services unless you choose to export/share it yourself.
+
