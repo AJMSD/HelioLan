@@ -362,9 +362,8 @@
             el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Sleep</p><h3>Recovery and consistency</h3></div></section>" +
                 "<section class=\"controls\"><div class=\"control\"><label for=\"sleepDate\">Date</label><input id=\"sleepDate\" type=\"date\" value=\"" + esc(day) + "\"></div><div class=\"control\"><label for=\"sleepWindow\">Trend window</label><select id=\"sleepWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
                 "<section class=\"card-grid\">" +
-                "<article class=\"card span-4\"><h4>Selected Night</h4>" + (chosen ? "<p class=\"metric\">" + esc(u.formatDurationMs(chosen.duration_ms)) + "</p><p class=\"metric-sub\">Bed " + esc(u.formatTime(chosen.start_time, s.prefs)) + " | Wake " + esc(u.formatTime(chosen.end_time, s.prefs)) + "</p>" : empty("No sleep data for selected date.")) + "</article>" +
-                "<article class=\"card span-4\"><h4>Weekly Consistency</h4><p class=\"metric\">+/-" + esc(bedVar) + "m</p><p class=\"metric-sub\">Bed variance | Wake variance +/-" + esc(wakeVar) + "m</p></article>" +
-                "<article class=\"card span-4\"><h4>Stages Timeline</h4><div class=\"empty-state\"><strong>Not available</strong><p>Stages are not exposed yet.</p><a class=\"hint-link\" href=\"#\" data-reason=\"sleep\">Not available - Why?</a></div></article>" +
+                "<article class=\"card span-6\"><h4>Selected Night</h4>" + (chosen ? "<p class=\"metric\">" + esc(u.formatDurationMs(chosen.duration_ms)) + "</p><p class=\"metric-sub\">Bed " + esc(u.formatTime(chosen.start_time, s.prefs)) + " | Wake " + esc(u.formatTime(chosen.end_time, s.prefs)) + "</p>" : empty("No sleep data for selected date.")) + "</article>" +
+                "<article class=\"card span-6\"><h4>Weekly Consistency</h4><p class=\"metric\">+/-" + esc(bedVar) + "m</p><p class=\"metric-sub\">Bed variance | Wake variance +/-" + esc(wakeVar) + "m</p></article>" +
                 "<article class=\"card span-6\"><h4>Sleep Sessions (Date)</h4><div class=\"chart-wrap\"><canvas id=\"sleepSessionChart\"></canvas></div></article>" +
                 "<article class=\"card span-6\"><h4>" + esc(win) + "-Day Trend</h4><div class=\"chart-wrap\"><canvas id=\"sleepTrendChart\"></canvas></div></article>" +
                 "</section>";
@@ -430,12 +429,24 @@
                 api.getAggregates({ type: "oxygen_saturation", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force)
             ]);
 
-            var hr = u.safeArray(data(rows[0])).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
-            var rhr = u.safeArray(data(rows[1])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
-            var hrv = u.safeArray(data(rows[2])).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
-            var spo2 = u.safeArray(data(rows[3])).sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
-            var hrvTrend = u.safeArray(data(rows[4])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
-            var spo2Trend = u.safeArray(data(rows[5])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+            function hasValue(v) { return v !== null && v !== undefined && v !== ""; }
+            function byTimestamp(list) {
+                return u.safeArray(list)
+                    .filter(function (r) { return r && typeof r === "object" && hasValue(r.timestamp); })
+                    .sort(function (a, b) { return String(a.timestamp).localeCompare(String(b.timestamp)); });
+            }
+            function byDate(list) {
+                return u.safeArray(list)
+                    .filter(function (r) { return r && typeof r === "object" && hasValue(r.date); })
+                    .sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+            }
+
+            var hr = byTimestamp(data(rows[0]));
+            var rhr = byDate(data(rows[1]));
+            var hrv = byTimestamp(data(rows[2]));
+            var spo2 = byTimestamp(data(rows[3]));
+            var hrvTrend = byDate(data(rows[4]));
+            var spo2Trend = byDate(data(rows[5]));
             var latest = hr.length ? hr[hr.length - 1] : null;
             var latestHrv = hrv.length ? hrv[hrv.length - 1] : null;
             var latestSpO2 = spo2.length ? spo2[spo2.length - 1] : null;

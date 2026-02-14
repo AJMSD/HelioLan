@@ -4,7 +4,7 @@
     --surface: #ffffff;
     --surface-soft: #f0f4e7;
     --text: #0f1b11;
-    --text-muted: #273428;
+    --text-muted: #1f2f21;
     --accent: #11624a;
     --accent-soft: #def0df;
     --warn: #b43d2e;
@@ -23,7 +23,7 @@
         --surface: #1b231a;
         --surface-soft: #202a1f;
         --text: #f2f7f0;
-        --text-muted: #d7e2d2;
+        --text-muted: #dce8d8;
         --accent: #78d18e;
         --accent-soft: #24392a;
         --warn: #ff8f80;
@@ -582,6 +582,12 @@ button:focus-visible {
 .settings-grid > .settings-card {
     display: flex;
     flex-direction: column;
+    min-height: 100%;
+}
+
+.settings-grid > .settings-card > .settings-row,
+.settings-grid > .settings-card > .app-info {
+    flex: 1 1 auto;
 }
 
 .settings-grid .settings-card-wide {

@@ -410,10 +410,11 @@ class MainActivity : ComponentActivity() {
 
         binding.environmentWarningTextView.text =
             if (warnings.isEmpty()) {
-                getString(R.string.main_warning_all_clear)
+                ""
             } else {
                 warnings.joinToString(separator = "\n")
             }
+        binding.environmentWarningTextView.isVisible = warnings.isNotEmpty()
     }
 
     private fun isWifiConnected(): Boolean {

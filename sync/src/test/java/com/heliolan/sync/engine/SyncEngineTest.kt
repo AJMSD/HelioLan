@@ -251,7 +251,7 @@ class SyncEngineTest {
         }
 
     @Test
-    fun syncAll_sleepAggregationUsesWakeDateForOvernightSessions() =
+    fun syncAll_sleepAggregationRefreshesBothStartAndWakeDatesForOvernightSessions() =
         runTest {
             val start = Instant.parse("2026-02-11T23:00:00Z")
             val end = Instant.parse("2026-02-12T07:30:00Z")
@@ -266,7 +266,11 @@ class SyncEngineTest {
                         syncedAt = end.plusSeconds(30),
                     ),
                 )
-            val expectedWakeDate = end.atZone(ZoneId.systemDefault()).toLocalDate()
+            val expectedDates =
+                mutableSetOf(
+                    start.atZone(ZoneId.systemDefault()).toLocalDate(),
+                    end.atZone(ZoneId.systemDefault()).toLocalDate(),
+                )
 
             coEvery { healthConnectReader.readHeartRate(any(), any()) } returns ReadResult.Success(emptyList())
             coEvery { healthConnectReader.readSleep(any(), any()) } returns ReadResult.Success(sleepRecords)
@@ -276,7 +280,7 @@ class SyncEngineTest {
             val result = syncEngine.syncAll()
 
             assertThat(result).isInstanceOf(SyncResult.Success::class.java)
-            coVerify(exactly = 1) { aggregationEngine.updateAggregatesForDates(setOf(expectedWakeDate)) }
+            coVerify(exactly = 1) { aggregationEngine.updateAggregatesForDates(expectedDates) }
         }
 
     @Test

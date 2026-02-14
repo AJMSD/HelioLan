@@ -2,6 +2,18 @@
     "use strict";
 
     var instances = {};
+    var DEFAULT_AXIS_COLOR = "#1f2f21";
+    var DEFAULT_GRID_COLOR = "rgba(31, 47, 33, 0.14)";
+    var DEFAULT_TEXT_COLOR = "#0f1b11";
+
+    function cssVar(name, fallback) {
+        try {
+            var value = global.getComputedStyle(document.documentElement).getPropertyValue(name);
+            return value && value.trim() ? value.trim() : fallback;
+        } catch (_unused) {
+            return fallback;
+        }
+    }
 
     function resolveCanvas(target) {
         if (!target) {
@@ -70,6 +82,9 @@
 
     function line(target, spec) {
         spec = spec || {};
+        var axisColor = cssVar("--text-muted", DEFAULT_AXIS_COLOR);
+        var gridColor = DEFAULT_GRID_COLOR;
+        var textColor = cssVar("--text", DEFAULT_TEXT_COLOR);
         return render(target, {
             type: "line",
             data: {
@@ -94,16 +109,31 @@
                     duration: spec.animate === false ? 0 : 260
                 },
                 scales: {
+                    x: {
+                        ticks: {
+                            color: axisColor
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    },
                     y: {
                         beginAtZero: spec.beginAtZero !== false,
                         ticks: {
+                            color: axisColor,
                             callback: spec.tickFormatter || undefined
+                        },
+                        grid: {
+                            color: gridColor
                         }
                     }
                 },
                 plugins: {
                     legend: {
-                        display: Boolean(spec.showLegend)
+                        display: Boolean(spec.showLegend),
+                        labels: {
+                            color: textColor
+                        }
                     },
                     tooltip: {
                         callbacks: spec.tooltipCallbacks || undefined
@@ -115,6 +145,8 @@
 
     function bar(target, spec) {
         spec = spec || {};
+        var axisColor = cssVar("--text-muted", DEFAULT_AXIS_COLOR);
+        var gridColor = DEFAULT_GRID_COLOR;
         return render(target, {
             type: "bar",
             data: {
@@ -136,10 +168,22 @@
                     duration: spec.animate === false ? 0 : 240
                 },
                 scales: {
+                    x: {
+                        ticks: {
+                            color: axisColor
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    },
                     y: {
                         beginAtZero: true,
                         ticks: {
+                            color: axisColor,
                             callback: spec.tickFormatter || undefined
+                        },
+                        grid: {
+                            color: gridColor
                         }
                     }
                 },
@@ -157,6 +201,8 @@
 
     function horizontalDuration(target, spec) {
         spec = spec || {};
+        var axisColor = cssVar("--text-muted", DEFAULT_AXIS_COLOR);
+        var gridColor = DEFAULT_GRID_COLOR;
         return render(target, {
             type: "bar",
             data: {
@@ -183,7 +229,19 @@
                     x: {
                         beginAtZero: true,
                         ticks: {
+                            color: axisColor,
                             callback: spec.tickFormatter || undefined
+                        },
+                        grid: {
+                            color: gridColor
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            color: axisColor
+                        },
+                        grid: {
+                            color: gridColor
                         }
                     }
                 }

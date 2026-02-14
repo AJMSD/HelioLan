@@ -199,7 +199,7 @@ class SyncEngine
 
             val cursor = syncCursorDao.getCursor(recordType)
             val endTime = Instant.now()
-            val startTime = resolveReadStart(cursor, windowMode, endTime)
+            val startTime = resolveReadStart(cursor, windowMode, endTime, recordType)
             emitProgress(recordType, SyncProgressState.READING, message = "Reading Health Connect")
 
             return when (recordType) {
@@ -571,7 +571,10 @@ class SyncEngine
             return PersistResult(
                 stored = uniqueSessions.size,
                 deduplicated = records.size - uniqueSessions.size,
-                affectedDates = uniqueSessions.mapTo(mutableSetOf()) { it.endTime.toLocalDate() },
+                affectedDates =
+                    uniqueSessions.flatMapTo(mutableSetOf()) { session ->
+                        listOf(session.startTime.toLocalDate(), session.endTime.toLocalDate())
+                    },
             )
         }
 
@@ -579,6 +582,7 @@ class SyncEngine
             cursor: SyncCursor?,
             windowMode: SyncWindowMode,
             now: Instant,
+            recordType: String,
         ): Instant {
             val initialStart =
                 when (windowMode) {
@@ -586,12 +590,22 @@ class SyncEngine
                     SyncWindowMode.FULL_HISTORY -> Instant.EPOCH
                 }
 
-            val start =
+            val baselineStart =
                 if (cursor == null) {
                     initialStart
                 } else {
                     cursor.lastSyncTime.minus(config.safetyWindowHours, ChronoUnit.HOURS)
                 }
+
+            // Sleep and total-calorie records can be long-running/cross-midnight; widen replay window.
+            val recordSpecificStart =
+                when (recordType) {
+                    RecordType.SLEEP,
+                    RecordType.TOTAL_CALORIES,
+                    -> now.minus(36, ChronoUnit.HOURS)
+                    else -> baselineStart
+                }
+            val start = minOf(baselineStart, recordSpecificStart)
 
             return if (start.isAfter(now)) now else start
         }

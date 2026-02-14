@@ -57,6 +57,7 @@ class SetupActivity : ComponentActivity() {
     private lateinit var healthPermissionLauncher: ActivityResultLauncher<Set<String>>
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        setTheme(R.style.Theme_HelioLAN)
         super.onCreate(savedInstanceState)
 
         val forceShow = intent.getBooleanExtra(EXTRA_FORCE_SHOW, false)

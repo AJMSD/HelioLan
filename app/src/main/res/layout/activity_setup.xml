@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
+    android:background="@color/md_theme_light_background"
     android:fillViewport="true">
 
     <LinearLayout
@@ -18,10 +18,10 @@
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+            app:cardBackgroundColor="@color/md_theme_light_surfaceVariant"
             app:cardCornerRadius="20dp"
             app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeColor="@color/md_theme_light_outline"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -35,6 +35,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_title"
+                    android:textColor="@color/md_theme_light_onBackground"
                     android:textAppearance="?attr/textAppearanceHeadlineSmall" />
 
                 <TextView
@@ -43,6 +44,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/setup_summary_initial"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                 <TextView
@@ -54,7 +56,7 @@
                     android:lineSpacingExtra="2dp"
                     android:minHeight="24dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
+                    android:textColor="@color/md_theme_light_onSurface" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -62,10 +64,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="?attr/colorSurface"
+            app:cardBackgroundColor="@color/md_theme_light_surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeColor="@color/md_theme_light_outline"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -79,6 +81,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_zepp_status"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -87,6 +90,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/md_theme_light_surfaceVariant"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:text="@string/setup_action_open_zepp_guide" />
 
                 <Button
@@ -95,6 +100,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
+                    android:backgroundTint="@color/md_theme_light_primary"
+                    android:textColor="@color/md_theme_light_onPrimary"
                     android:text="@string/setup_action_confirm_zepp_sync" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -103,10 +110,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="?attr/colorSurface"
+            app:cardBackgroundColor="@color/md_theme_light_surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeColor="@color/md_theme_light_outline"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -120,6 +127,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_permissions_status"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -128,6 +136,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/md_theme_light_primary"
+                    android:textColor="@color/md_theme_light_onPrimary"
                     android:text="@string/setup_action_request_permissions" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -136,10 +146,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="?attr/colorSurface"
+            app:cardBackgroundColor="@color/md_theme_light_surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeColor="@color/md_theme_light_outline"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -153,6 +163,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_sync_status"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -161,6 +172,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/md_theme_light_primary"
+                    android:textColor="@color/md_theme_light_onPrimary"
                     android:text="@string/setup_action_run_first_sync" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -169,10 +182,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="?attr/colorSurface"
+            app:cardBackgroundColor="@color/md_theme_light_surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeColor="@color/md_theme_light_outline"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -186,6 +199,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_passcode_status"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -194,8 +208,8 @@
                     android:layout_marginTop="12dp"
                     android:hint="@string/setup_hint_passcode"
                     app:boxBackgroundMode="outline"
-                    app:boxStrokeColor="?attr/colorOutline"
-                    app:hintTextColor="?attr/colorOnSurfaceVariant">
+                    app:boxStrokeColor="@color/md_theme_light_outline"
+                    app:hintTextColor="@color/md_theme_light_onSurfaceVariant">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/passcodeInputEditText"
@@ -203,8 +217,8 @@
                         android:layout_height="wrap_content"
                         android:inputType="numberPassword"
                         android:maxLength="8"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textColorHint="?attr/colorOnSurfaceVariant" />
+                        android:textColor="@color/md_theme_light_onSurface"
+                        android:textColorHint="@color/md_theme_light_onSurfaceVariant" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <Button
@@ -213,6 +227,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
+                    android:backgroundTint="@color/md_theme_light_primary"
+                    android:textColor="@color/md_theme_light_onPrimary"
                     android:text="@string/setup_action_set_passcode" />
 
                 <Button
@@ -221,6 +237,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
+                    android:backgroundTint="@color/md_theme_light_surfaceVariant"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:text="@string/setup_action_skip_passcode" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -229,10 +247,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardBackgroundColor="?attr/colorSurface"
+            app:cardBackgroundColor="@color/md_theme_light_surface"
             app:cardCornerRadius="18dp"
             app:cardElevation="0dp"
-            app:strokeColor="?attr/colorOutlineVariant"
+            app:strokeColor="@color/md_theme_light_outline"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -246,6 +264,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_dashboard_status"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -254,6 +273,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/md_theme_light_primary"
+                    android:textColor="@color/md_theme_light_onPrimary"
                     android:text="@string/setup_action_start_dashboard" />
 
                 <Button
@@ -262,6 +283,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
+                    android:backgroundTint="@color/md_theme_light_surfaceVariant"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:text="@string/setup_action_refresh_status" />
 
                 <TextView
@@ -269,13 +292,13 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:background="?attr/colorSurfaceContainerLow"
+                    android:background="@color/md_theme_light_surfaceVariant"
                     android:paddingStart="12dp"
                     android:paddingTop="10dp"
                     android:paddingEnd="12dp"
                     android:paddingBottom="10dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurface"
+                    android:textColor="@color/md_theme_light_onSurface"
                     android:textIsSelectable="true" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -286,7 +309,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
+            android:backgroundTint="@color/md_theme_light_primary"
             android:enabled="false"
+            android:textColor="@color/md_theme_light_onPrimary"
             android:text="@string/setup_action_finish" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

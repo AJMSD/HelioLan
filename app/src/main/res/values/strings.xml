@@ -2,7 +2,7 @@
     <string name="app_name">HelioLan</string>
 
     <!-- Setup flow -->
-    <string name="setup_title">Set Up HelioLan</string>
+    <string name="setup_title">HelioLan</string>
     <string name="setup_summary_initial">0 of 5 setup steps completed</string>
     <string name="setup_step_zepp_status">1. Zepp to Health Connect sync: %1$s</string>
     <string name="setup_step_permissions_status">2. Health Connect permissions: %1$s</string>
@@ -31,7 +31,7 @@
     <string name="setup_message_passcode_skip">Open access enabled. You can set a passcode later.</string>
     <string name="setup_message_passcode_failure">Passcode update failed: %1$s</string>
     <string name="setup_message_dashboard_starting">Starting dashboard service...</string>
-    <string name="setup_message_dashboard_started">Dashboard started at %1$s</string>
+    <string name="setup_message_dashboard_started">Dashboard started. Open your private dashboard on the same Wi-Fi: %1$s</string>
     <string name="setup_message_dashboard_stopped">Dashboard is not running yet.</string>
 
     <!-- Dashboard service -->
@@ -56,7 +56,7 @@
 
     <!-- Main app shell -->
     <string name="main_title">HelioLan</string>
-    <string name="main_subtitle">Keep your phone ready.</string>
+    <string name="main_subtitle">HelioLan</string>
     <string name="main_label_health_connect">Health Connect</string>
     <string name="main_label_permissions">Permissions</string>
     <string name="main_label_sync">Sync Status</string>

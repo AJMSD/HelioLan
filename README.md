@@ -18,6 +18,10 @@ HelioLAN is a local-first Android app that reads health data from Health Connect
 - Android app theme aligned with dashboard colors.
 - Setup guide redesigned with card-based sections and improved readability.
 - Total calories pipeline updated to page through Health Connect records and compute range sums consistently.
+- Sleep trend refresh now reprocesses both sleep start-day and wake-day to prevent stale overnight bars.
+- Cardio rendering now ignores malformed/null rows to prevent `timestamp` null crashes.
+- Setup/Main header text simplified to `HelioLan`; server help continues to show same-Wi-Fi private dashboard URL.
+- Splash updated to green jump-rope animation styling and force-dark overrides disabled for consistent colors.
 
 ## Core capabilities
 
