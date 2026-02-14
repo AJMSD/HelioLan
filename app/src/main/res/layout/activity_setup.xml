@@ -35,7 +35,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_title"
-                    android:textColor="@color/md_theme_light_onBackground"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceHeadlineSmall" />
 
                 <TextView
@@ -44,7 +44,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/setup_summary_initial"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
 
                 <TextView
@@ -56,7 +56,7 @@
                     android:lineSpacingExtra="2dp"
                     android:minHeight="24dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="@color/md_theme_light_onSurface" />
+                    android:textColor="@color/setup_dark_forest_green" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
@@ -81,7 +81,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_zepp_status"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -91,7 +91,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:backgroundTint="@color/md_theme_light_surfaceVariant"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_open_zepp_guide" />
 
                 <Button
@@ -100,8 +100,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:backgroundTint="@color/md_theme_light_primary"
-                    android:textColor="@color/md_theme_light_onPrimary"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_confirm_zepp_sync" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -127,7 +127,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_permissions_status"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -136,8 +136,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/md_theme_light_primary"
-                    android:textColor="@color/md_theme_light_onPrimary"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_request_permissions" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -163,7 +163,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_sync_status"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -172,8 +172,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/md_theme_light_primary"
-                    android:textColor="@color/md_theme_light_onPrimary"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_run_first_sync" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -199,7 +199,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_passcode_status"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <com.google.android.material.textfield.TextInputLayout
@@ -208,8 +208,8 @@
                     android:layout_marginTop="12dp"
                     android:hint="@string/setup_hint_passcode"
                     app:boxBackgroundMode="outline"
-                    app:boxStrokeColor="@color/md_theme_light_outline"
-                    app:hintTextColor="@color/md_theme_light_onSurfaceVariant">
+                    app:boxStrokeColor="@color/setup_dark_forest_green"
+                    app:hintTextColor="@color/setup_dark_forest_green">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/passcodeInputEditText"
@@ -217,8 +217,8 @@
                         android:layout_height="wrap_content"
                         android:inputType="numberPassword"
                         android:maxLength="8"
-                        android:textColor="@color/md_theme_light_onSurface"
-                        android:textColorHint="@color/md_theme_light_onSurfaceVariant" />
+                        android:textColor="@color/setup_dark_forest_green"
+                        android:textColorHint="@color/setup_dark_forest_green" />
                 </com.google.android.material.textfield.TextInputLayout>
 
                 <Button
@@ -227,8 +227,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
-                    android:backgroundTint="@color/md_theme_light_primary"
-                    android:textColor="@color/md_theme_light_onPrimary"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_set_passcode" />
 
                 <Button
@@ -237,8 +237,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:backgroundTint="@color/md_theme_light_surfaceVariant"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_skip_passcode" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -264,7 +264,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="@string/setup_step_dashboard_status"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textAppearance="?attr/textAppearanceTitleMedium" />
 
                 <Button
@@ -273,8 +273,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
-                    android:backgroundTint="@color/md_theme_light_primary"
-                    android:textColor="@color/md_theme_light_onPrimary"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_start_dashboard" />
 
                 <Button
@@ -283,8 +283,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
-                    android:backgroundTint="@color/md_theme_light_surfaceVariant"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:backgroundTint="@color/md_theme_light_primaryContainer"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:text="@string/setup_action_refresh_status" />
 
                 <TextView
@@ -298,7 +298,7 @@
                     android:paddingEnd="12dp"
                     android:paddingBottom="10dp"
                     android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="@color/md_theme_light_onSurface"
+                    android:textColor="@color/setup_dark_forest_green"
                     android:textIsSelectable="true" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
@@ -309,9 +309,9 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:backgroundTint="@color/md_theme_light_primary"
+            android:backgroundTint="@color/md_theme_light_primaryContainer"
             android:enabled="false"
-            android:textColor="@color/md_theme_light_onPrimary"
+            android:textColor="@color/setup_dark_forest_green"
             android:text="@string/setup_action_finish" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
