@@ -40,7 +40,8 @@ object DatabaseModule {
         object : Migration(2, 3) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS idx_heart_rate_health_connect_id ON heart_rate_samples(health_connect_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_heart_rate_health_connect_id " +
+                        "ON heart_rate_samples(health_connect_id)",
                 )
                 database.execSQL(
                     "CREATE INDEX IF NOT EXISTS idx_sleep_health_connect_id ON sleep_sessions(health_connect_id)",
@@ -55,25 +56,30 @@ object DatabaseModule {
                     "CREATE INDEX IF NOT EXISTS idx_steps_health_connect_id ON steps_records(health_connect_id)",
                 )
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS idx_resting_hr_health_connect_id ON resting_heart_rate(health_connect_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_resting_hr_health_connect_id " +
+                        "ON resting_heart_rate(health_connect_id)",
                 )
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS idx_active_calories_health_connect_id ON active_calories_burned(health_connect_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_active_calories_health_connect_id " +
+                        "ON active_calories_burned(health_connect_id)",
                 )
                 database.execSQL(
                     "CREATE INDEX IF NOT EXISTS idx_distance_health_connect_id ON distance_records(health_connect_id)",
                 )
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS idx_total_calories_health_connect_id ON total_calories_burned(health_connect_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_total_calories_health_connect_id " +
+                        "ON total_calories_burned(health_connect_id)",
                 )
                 database.execSQL(
                     "CREATE INDEX IF NOT EXISTS idx_total_calories_end_time ON total_calories_burned(end_time)",
                 )
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS idx_total_calories_source_end ON total_calories_burned(source, end_time)",
+                    "CREATE INDEX IF NOT EXISTS idx_total_calories_source_end " +
+                        "ON total_calories_burned(source, end_time)",
                 )
                 database.execSQL(
-                    "CREATE INDEX IF NOT EXISTS idx_nutrition_health_connect_id ON nutrition_records(health_connect_id)",
+                    "CREATE INDEX IF NOT EXISTS idx_nutrition_health_connect_id " +
+                        "ON nutrition_records(health_connect_id)",
                 )
                 database.execSQL(
                     "CREATE INDEX IF NOT EXISTS idx_oxygen_health_connect_id ON oxygen_saturation(health_connect_id)",
