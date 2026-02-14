@@ -511,6 +511,31 @@ button:focus-visible {
     border-color: color-mix(in srgb, var(--warn) 34%, var(--border));
 }
 
+.cardio-warning {
+    margin-bottom: 12px;
+    border: 1px solid color-mix(in srgb, var(--warn) 36%, var(--border));
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    background: color-mix(in srgb, var(--warn) 9%, var(--surface-soft));
+}
+
+.cardio-warning p {
+    margin: 4px 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.cardio-warning-list {
+    margin: 8px 0 0 18px;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+}
+
+.cardio-warning-list li {
+    margin: 2px 0;
+}
+
 .hint-link {
     display: inline-flex;
     margin-top: 8px;

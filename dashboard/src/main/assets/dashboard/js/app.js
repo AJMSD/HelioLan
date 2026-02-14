@@ -108,6 +108,64 @@
         return err.message || fallback;
     }
 
+    function readDebugFlag() {
+        var search = (global.location && global.location.search) ? String(global.location.search) : "";
+        var debugQuery = /(?:^|[?&])debug=(?:1|true|yes)(?:&|$)/i.test(search);
+        var debugStorage = false;
+        try {
+            debugStorage = global.localStorage && global.localStorage.getItem("heliolan_debug") === "1";
+        } catch (_unused) {
+            debugStorage = false;
+        }
+        return Boolean(debugQuery || debugStorage);
+    }
+
+    function endpointFailureSummary(entry, reason) {
+        var err = reason && typeof reason === "object" ? reason : {};
+        var status = Number(err.status || 0);
+        if (!Number.isFinite(status)) {
+            status = 0;
+        }
+        return {
+            key: entry.key,
+            name: entry.name,
+            path: entry.path,
+            status: status,
+            code: err.code ? String(err.code) : "UNKNOWN_ERROR",
+            message: err.message ? String(err.message) : "Unexpected error"
+        };
+    }
+
+    function logCardioEndpointFailure(failure) {
+        if (!global.console || typeof global.console.error !== "function") return;
+        global.console.error(
+            "[HelioLAN][Cardio] Failed endpoint: " +
+            failure.name +
+            " (" + failure.path + ")" +
+            " status=" + failure.status +
+            " code=" + failure.code +
+            " message=" + failure.message
+        );
+    }
+
+    function renderCardioPartialBanner(failures, debugMode) {
+        failures = u.safeArray(failures);
+        if (!failures.length) {
+            return "";
+        }
+
+        var details = "";
+        if (debugMode) {
+            details = "<ul class=\"cardio-warning-list\">" +
+                failures.map(function (failure) {
+                    return "<li><code>" + esc(failure.path) + "</code> (" + esc(failure.name) + ") - status " + esc(failure.status) + " - " + esc(failure.code) + ": " + esc(failure.message) + "</li>";
+                }).join("") +
+                "</ul>";
+        }
+
+        return "<section class=\"cardio-warning\" role=\"status\" aria-live=\"polite\"><strong>Some metrics failed to load.</strong><p>Showing available cardio data.</p>" + details + "</section>";
+    }
+
     function setAuth(msg, type) {
         if (!el.authMessage) return;
         el.authMessage.className = "message" + (type ? " " + type : "");
@@ -415,19 +473,65 @@
             el.viewContainer.innerHTML = skeleton();
         }
         try {
+            var debugMode = readDebugFlag();
             var day = s.date.cardio;
             var dayDate = new Date(day + "T00:00:00");
             var win = Number(s.prefs.cardioTrendWindow || 14);
             var start = u.shiftDate(new Date(), -(win - 1));
 
-            var rows = await Promise.all([
-                api.getHeartRate({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 2000, offset: 0 }, force),
-                api.getRestingHeartRate({ from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()), limit: 400, offset: 0 }, force),
-                api.getHrv({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force),
-                api.getOxygenSaturation({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force),
-                api.getAggregates({ type: "hrv", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force),
-                api.getAggregates({ type: "oxygen_saturation", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force)
-            ]);
+            var cardioRequests = [
+                {
+                    key: "hr_intraday",
+                    name: "Intraday heart rate",
+                    path: "/heartrate",
+                    request: api.getHeartRate({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 2000, offset: 0 }, force)
+                },
+                {
+                    key: "resting_hr_trend",
+                    name: "Resting HR trend",
+                    path: "/resting-hr",
+                    request: api.getRestingHeartRate({ from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()), limit: 400, offset: 0 }, force)
+                },
+                {
+                    key: "hrv_intraday",
+                    name: "Intraday HRV",
+                    path: "/hrv",
+                    request: api.getHrv({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force)
+                },
+                {
+                    key: "spo2_intraday",
+                    name: "Intraday SpO2",
+                    path: "/oxygen-saturation",
+                    request: api.getOxygenSaturation({ from: u.startOfDayIso(dayDate), to: u.endOfDayIso(dayDate), limit: 500, offset: 0 }, force)
+                },
+                {
+                    key: "hrv_trend",
+                    name: "HRV trend",
+                    path: "/aggregates?type=hrv",
+                    request: api.getAggregates({ type: "hrv", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force)
+                },
+                {
+                    key: "spo2_trend",
+                    name: "SpO2 trend",
+                    path: "/aggregates?type=oxygen_saturation",
+                    request: api.getAggregates({ type: "oxygen_saturation", from: u.toDateInputValue(start), to: u.toDateInputValue(new Date()) }, force)
+                }
+            ];
+
+            var settledRows = await Promise.allSettled(cardioRequests.map(function (entry) { return entry.request; }));
+            var rows = [];
+            var failedMetrics = [];
+
+            settledRows.forEach(function each(result, index) {
+                if (result.status === "fulfilled") {
+                    rows[index] = result.value;
+                    return;
+                }
+                rows[index] = null;
+                var failure = endpointFailureSummary(cardioRequests[index], result.reason);
+                failedMetrics.push(failure);
+                logCardioEndpointFailure(failure);
+            });
 
             function hasValue(v) { return v !== null && v !== undefined && v !== ""; }
             function byTimestamp(list) {
@@ -451,9 +555,11 @@
             var latestHrv = hrv.length ? hrv[hrv.length - 1] : null;
             var latestSpO2 = spo2.length ? spo2[spo2.length - 1] : null;
             var latestSpO2Percent = normalizePercentage(latestSpO2 && latestSpO2.percentage);
+            var partialFailureBanner = renderCardioPartialBanner(failedMetrics, debugMode);
 
             el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Cardio</p><h3>Intraday and resting trends</h3></div></section>" +
                 "<section class=\"controls\"><div class=\"control\"><label for=\"cardioDate\">Intraday date</label><input id=\"cardioDate\" type=\"date\" value=\"" + esc(day) + "\"></div><div class=\"control\"><label for=\"cardioWindow\">Resting trend</label><select id=\"cardioWindow\"><option value=\"7\" " + (win === 7 ? "selected" : "") + ">7 days</option><option value=\"14\" " + (win === 14 ? "selected" : "") + ">14 days</option><option value=\"30\" " + (win === 30 ? "selected" : "") + ">30 days</option></select></div></section>" +
+                partialFailureBanner +
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-3\"><h4>Latest Reading</h4>" + (latest ? "<p class=\"metric\">" + esc(latest.bpm) + " bpm</p><p class=\"metric-sub\">" + esc(u.formatDateTime(latest.timestamp, s.prefs)) + "</p>" : empty("No heart-rate data for date.")) + "</article>" +
                 "<article class=\"card span-3\"><h4>Resting HR</h4>" + (rhr.length ? "<p class=\"metric\">" + esc(rhr[rhr.length - 1].bpm) + " bpm</p><p class=\"metric-sub\">Trend window</p>" : empty("No resting trend data.")) + "</article>" +

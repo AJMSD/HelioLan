@@ -3,6 +3,7 @@ package com.heliolan.server
 import android.content.Context
 import com.heliolan.data.repository.HealthRepository
 import com.heliolan.healthconnect.permission.PermissionManager
+import com.heliolan.healthconnect.reader.HealthConnectReader
 import com.heliolan.server.export.ExportEngine
 import com.heliolan.server.security.LoginAttemptTracker
 import com.heliolan.server.security.NetworkSecurityValidator
@@ -44,6 +45,7 @@ class KtorDashboardServerController
         private val syncScheduler: SyncScheduler,
         private val syncEngine: SyncEngine,
         private val permissionManager: PermissionManager,
+        private val healthConnectReader: HealthConnectReader,
         private val exportEngine: ExportEngine,
         private val sessionManager: SessionManager,
         private val securitySettingsManager: SecuritySettingsManager,
@@ -115,6 +117,7 @@ class KtorDashboardServerController
                                             syncScheduler = syncScheduler,
                                             syncEngine = syncEngine,
                                             permissionManager = permissionManager,
+                                            healthConnectReader = healthConnectReader,
                                             exportEngine = exportEngine,
                                             config = requestedConfig,
                                             rateLimiter = candidateRateLimiter,
@@ -143,6 +146,7 @@ class KtorDashboardServerController
                                     syncScheduler = syncScheduler,
                                     syncEngine = syncEngine,
                                     permissionManager = permissionManager,
+                                    healthConnectReader = healthConnectReader,
                                     exportEngine = exportEngine,
                                     config = requestedConfig,
                                     rateLimiter = candidateRateLimiter,

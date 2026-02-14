@@ -2,6 +2,7 @@ package com.heliolan.server
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import com.heliolan.data.entity.ActiveCaloriesBurned
 import com.heliolan.data.entity.DailyAggregate
 import com.heliolan.data.entity.DistanceRecord
@@ -18,6 +19,8 @@ import com.heliolan.data.repository.HealthRepository
 import com.heliolan.data.util.DataFreshness
 import com.heliolan.data.util.RecordType
 import com.heliolan.healthconnect.permission.PermissionManager
+import com.heliolan.healthconnect.reader.AggregateReadResult
+import com.heliolan.healthconnect.reader.HealthConnectReader
 import com.heliolan.server.export.ExportEngine
 import com.heliolan.server.export.registerExportRoutes
 import com.heliolan.server.security.LoginAttemptTracker
@@ -85,6 +88,7 @@ private val json =
         prettyPrint = false
         encodeDefaults = true
     }
+private const val DASHBOARD_SERVER_TAG = "DashboardServerApi"
 
 private data class PaginationRequest(
     val limit: Int,
@@ -107,6 +111,7 @@ fun Application.configureDashboardApplication(
     syncScheduler: SyncScheduler,
     syncEngine: SyncEngine,
     permissionManager: PermissionManager,
+    healthConnectReader: HealthConnectReader,
     exportEngine: ExportEngine,
     config: DashboardServerConfig,
     rateLimiter: ApiRateLimiter,
@@ -468,23 +473,45 @@ fun Application.configureDashboardApplication(
 
                 val today = LocalDate.now(clock.withZone(zoneId))
                 val dayStart = today.atStartOfDay(zoneId).toInstant()
-                val dayEnd = today.plusDays(1).atStartOfDay(zoneId).toInstant().minusNanos(1)
+                val dayEndExclusive = today.plusDays(1).atStartOfDay(zoneId).toInstant()
+                val dayEndInclusive = dayEndExclusive.minusNanos(1)
+                val includeCaloriesDebug = call.request.queryParameters["debug"].toBooleanFlag()
+                val backfillDays = call.request.queryParameters["calories_backfill_days"].toPositiveIntOrNull(max = 365)
 
-                val stepsToday = healthRepository.getTotalSteps(dayStart, dayEnd).first()
+                val stepsToday = healthRepository.getTotalSteps(dayStart, dayEndInclusive).first()
                 val latestHeartRate = healthRepository.getLatestHeartRate().first()
                 val latestSleep = healthRepository.getLatestSleepSession().first()
                 val latestRestingHeartRate = healthRepository.getLatestRestingHeartRate().first()
                 val latestActiveCalories = healthRepository.getLatestActiveCaloriesBurned().first()
                 val activeCaloriesToday = healthRepository.getTotalActiveCalories(today, today).first()
                 val latestDistance = healthRepository.getLatestDistanceRecord().first()
-                val distanceTodayMeters = healthRepository.getTotalDistanceMeters(dayStart, dayEnd).first()
+                val distanceTodayMeters = healthRepository.getTotalDistanceMeters(dayStart, dayEndInclusive).first()
                 val latestTotalCalories = healthRepository.getLatestTotalCaloriesBurned().first()
-                val totalCaloriesToday = healthRepository.getTotalCaloriesBurned(dayStart, dayEnd).first()
+                val rawOverlapTotalCaloriesToday =
+                    healthRepository.getTotalCaloriesBurned(dayStart, dayEndInclusive).first()
+                val totalCaloriesAggregateResult =
+                    healthConnectReader.aggregateTotalCaloriesBurned(
+                        startTime = dayStart,
+                        endTimeExclusive = dayEndExclusive,
+                    )
+                val totalCaloriesAggregateValue =
+                    (totalCaloriesAggregateResult as? AggregateReadResult.Success<Double>)?.data
+                val totalCaloriesToday = totalCaloriesAggregateValue ?: rawOverlapTotalCaloriesToday
+                val totalCaloriesSource =
+                    if (totalCaloriesAggregateValue != null) {
+                        "health_connect_aggregate"
+                    } else {
+                        "raw_overlap_fallback"
+                    }
+                val aggregateHistoryPermissionRequired =
+                    (totalCaloriesAggregateResult as? AggregateReadResult.Error)?.requiresHistoryPermission == true
+                val aggregateMessage =
+                    (totalCaloriesAggregateResult as? AggregateReadResult.Error)?.message
                 val latestNutrition = healthRepository.getLatestNutritionRecord().first()
                 val nutritionRecordsToday =
                     healthRepository.getNutritionRecords(
                         startTime = dayStart,
-                        endTime = dayEnd,
+                        endTime = dayEndInclusive,
                         limit = 1000,
                         offset = 0,
                     ).first()
@@ -492,6 +519,63 @@ fun Application.configureDashboardApplication(
                 val latestOxygenSaturation = healthRepository.getLatestOxygenSaturation().first()
                 val latestHrv = healthRepository.getLatestHrvRecord().first()
                 val syncStatus = syncEngine.getSyncStatus()
+                val backfillAggregateDebug =
+                    if (includeCaloriesDebug && backfillDays != null) {
+                        val backfillStart = today.minusDays((backfillDays - 1).toLong()).atStartOfDay(zoneId).toInstant()
+                        when (
+                            val result =
+                                healthConnectReader.aggregateTotalCaloriesBurnedByDay(
+                                    startTime = backfillStart,
+                                    endTimeExclusive = dayEndExclusive,
+                                )
+                        ) {
+                            is AggregateReadResult.Success ->
+                                buildJsonObject {
+                                    put("status", "success")
+                                    put("days", backfillDays)
+                                    put(
+                                        "rows",
+                                        JsonArray(
+                                            result.data.map { row ->
+                                                buildJsonObject {
+                                                    put("date", row.startTime.atZone(zoneId).toLocalDate().toString())
+                                                    put("total_calories_kcal", row.energyKcal)
+                                                }
+                                            },
+                                        ),
+                                    )
+                                }
+                            is AggregateReadResult.PermissionDenied ->
+                                buildJsonObject {
+                                    put("status", "permission_denied")
+                                    put("days", backfillDays)
+                                }
+                            is AggregateReadResult.HealthConnectUnavailable ->
+                                buildJsonObject {
+                                    put("status", "health_connect_unavailable")
+                                    put("days", backfillDays)
+                                }
+                            is AggregateReadResult.Error ->
+                                buildJsonObject {
+                                    put("status", "error")
+                                    put("days", backfillDays)
+                                    put("message", result.message)
+                                    put("history_permission_required", result.requiresHistoryPermission)
+                                }
+                        }
+                    } else {
+                        null
+                    }
+
+                Log.i(
+                    DASHBOARD_SERVER_TAG,
+                    "today_total_calories " +
+                        "date=$today " +
+                        "source=$totalCaloriesSource " +
+                        "aggregate_kcal=${totalCaloriesAggregateValue?.toString() ?: "unavailable"} " +
+                        "raw_overlap_kcal=$rawOverlapTotalCaloriesToday " +
+                        "history_permission_required=$aggregateHistoryPermissionRequired",
+                )
 
                 call.respondApiSuccess(
                     data =
@@ -515,6 +599,34 @@ fun Application.configureDashboardApplication(
                     clock = clock,
                     meta = {
                         put("freshness", syncStatus.toFreshnessJson())
+                        if (includeCaloriesDebug) {
+                            put(
+                                "total_calories_debug",
+                                buildJsonObject {
+                                    put("source", totalCaloriesSource)
+                                    put("raw_overlap_sum_kcal", rawOverlapTotalCaloriesToday)
+                                    if (totalCaloriesAggregateValue != null) {
+                                        put("aggregate_total_kcal", totalCaloriesAggregateValue)
+                                    } else {
+                                        put("aggregate_total_kcal", JsonNull)
+                                    }
+                                    when (totalCaloriesAggregateResult) {
+                                        is AggregateReadResult.Success -> put("aggregate_status", "success")
+                                        is AggregateReadResult.PermissionDenied -> put("aggregate_status", "permission_denied")
+                                        is AggregateReadResult.HealthConnectUnavailable ->
+                                            put("aggregate_status", "health_connect_unavailable")
+                                        is AggregateReadResult.Error -> {
+                                            put("aggregate_status", "error")
+                                            put("aggregate_message", aggregateMessage ?: "")
+                                            put("history_permission_required", aggregateHistoryPermissionRequired)
+                                        }
+                                    }
+                                    if (backfillAggregateDebug != null) {
+                                        put("backfill_daily", backfillAggregateDebug)
+                                    }
+                                },
+                            )
+                        }
                     },
                 )
             }
@@ -1616,6 +1728,17 @@ private fun String.toInstantOrNull(zoneId: ZoneId): Instant? {
 
 private fun String.toLocalDateOrNull(): LocalDate? {
     return runCatching { LocalDate.parse(this) }.getOrNull()
+}
+
+private fun String?.toBooleanFlag(): Boolean {
+    val normalized = this?.trim()?.lowercase() ?: return false
+    return normalized == "1" || normalized == "true" || normalized == "yes" || normalized == "on"
+}
+
+private fun String?.toPositiveIntOrNull(max: Int): Int? {
+    val parsed = this?.trim()?.toIntOrNull() ?: return null
+    if (parsed <= 0) return null
+    return minOf(parsed, max)
 }
 
 private fun resolveAppVersion(context: Context): String {

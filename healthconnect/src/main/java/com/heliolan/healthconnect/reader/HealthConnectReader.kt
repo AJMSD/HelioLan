@@ -2,6 +2,8 @@ package com.heliolan.healthconnect.reader
 
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.request.AggregateGroupByPeriodRequest
+import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.DistanceRecord
 import androidx.health.connect.client.records.HeartRateRecord
@@ -25,6 +27,9 @@ import com.heliolan.data.entity.TotalCaloriesBurned
 import com.heliolan.healthconnect.mapper.HealthConnectMapper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.time.Instant
+import java.time.Period
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.heliolan.data.entity.DistanceRecord as DistanceRecordEntity
@@ -44,6 +49,26 @@ sealed class ReadResult<out T> {
     object HealthConnectUnavailable : ReadResult<Nothing>()
 }
 
+data class TotalCaloriesDailyAggregate(
+    val startTime: Instant,
+    val endTime: Instant,
+    val energyKcal: Double,
+)
+
+sealed class AggregateReadResult<out T> {
+    data class Success<T>(val data: T) : AggregateReadResult<T>()
+
+    data class Error(
+        val message: String,
+        val throwable: Throwable? = null,
+        val requiresHistoryPermission: Boolean = false,
+    ) : AggregateReadResult<Nothing>()
+
+    object PermissionDenied : AggregateReadResult<Nothing>()
+
+    object HealthConnectUnavailable : AggregateReadResult<Nothing>()
+}
+
 /**
  * Reads health data from Health Connect and maps to local entities.
  * Handles pagination, error cases, and permission issues.
@@ -56,6 +81,7 @@ class HealthConnectReader
     ) {
         private companion object {
             const val HEALTH_CONNECT_PAGE_SIZE = 1000
+            const val HISTORY_WINDOW_DAYS = 30L
         }
 
         private val healthConnectClient: HealthConnectClient? by lazy<HealthConnectClient?> {
@@ -326,6 +352,90 @@ class HealthConnectReader
             }
         }
 
+        suspend fun aggregateTotalCaloriesBurned(
+            startTime: Instant,
+            endTimeExclusive: Instant,
+        ): AggregateReadResult<Double> {
+            val client = healthConnectClient ?: return AggregateReadResult.HealthConnectUnavailable
+            if (!startTime.isBefore(endTimeExclusive)) {
+                return AggregateReadResult.Error("Failed to aggregate total calories: invalid time range.")
+            }
+
+            return try {
+                val zoneId = ZoneId.systemDefault()
+                val request =
+                    AggregateRequest(
+                        metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                        timeRangeFilter =
+                            TimeRangeFilter.between(
+                                startTime.atZone(zoneId).toLocalDateTime(),
+                                endTimeExclusive.atZone(zoneId).toLocalDateTime(),
+                            ),
+                    )
+                val aggregation = client.aggregate(request)
+                val totalKcal = aggregation[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
+                AggregateReadResult.Success(totalKcal)
+            } catch (e: SecurityException) {
+                if (requiresHistoryPermission(startTime)) {
+                    AggregateReadResult.Error(
+                        message = "History permission required to aggregate total calories older than 30 days.",
+                        throwable = e,
+                        requiresHistoryPermission = true,
+                    )
+                } else {
+                    AggregateReadResult.PermissionDenied
+                }
+            } catch (e: Exception) {
+                AggregateReadResult.Error("Failed to aggregate total calories: ${e.message}", e)
+            }
+        }
+
+        suspend fun aggregateTotalCaloriesBurnedByDay(
+            startTime: Instant,
+            endTimeExclusive: Instant,
+        ): AggregateReadResult<List<TotalCaloriesDailyAggregate>> {
+            val client = healthConnectClient ?: return AggregateReadResult.HealthConnectUnavailable
+            if (!startTime.isBefore(endTimeExclusive)) {
+                return AggregateReadResult.Error("Failed to aggregate total calories by day: invalid time range.")
+            }
+
+            return try {
+                val zoneId = ZoneId.systemDefault()
+                val request =
+                    AggregateGroupByPeriodRequest(
+                        metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
+                        timeRangeFilter =
+                            TimeRangeFilter.between(
+                                startTime.atZone(zoneId).toLocalDateTime(),
+                                endTimeExclusive.atZone(zoneId).toLocalDateTime(),
+                            ),
+                        timeRangeSlicer = Period.ofDays(1),
+                    )
+                val grouped = client.aggregateGroupByPeriod(request)
+                val daily =
+                    grouped.map { row ->
+                        TotalCaloriesDailyAggregate(
+                            startTime = row.startTime.atZone(zoneId).toInstant(),
+                            endTime = row.endTime.atZone(zoneId).toInstant(),
+                            energyKcal = row.result[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0,
+                        )
+                    }
+                AggregateReadResult.Success(daily)
+            } catch (e: SecurityException) {
+                if (requiresHistoryPermission(startTime)) {
+                    AggregateReadResult.Error(
+                        message = "History permission required to aggregate daily total calories older than 30 days.",
+                        throwable = e,
+                        requiresHistoryPermission = true,
+                    )
+                } else {
+                    AggregateReadResult.PermissionDenied
+                }
+            } catch (e: Exception) {
+                AggregateReadResult.Error("Failed to aggregate total calories by day: ${e.message}", e)
+            }
+        }
+
         /**
          * Read nutrition records from Health Connect.
          */
@@ -416,5 +526,10 @@ class HealthConnectReader
             } catch (e: Exception) {
                 false
             }
+        }
+
+        private fun requiresHistoryPermission(startTime: Instant): Boolean {
+            val threshold = Instant.now().minus(HISTORY_WINDOW_DAYS, ChronoUnit.DAYS)
+            return startTime.isBefore(threshold)
         }
     }
