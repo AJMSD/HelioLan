@@ -117,5 +117,5 @@
     <string name="about_action_close">Close</string>
     <string name="about_action_open_github">Open GitHub</string>
     <string name="about_github_url">https://github.com/AJMSD/HelioLan</string>
-    <string name="about_message">Version: %1$s\n\nPrivacy: HelioLan keeps your health data on-device and serves dashboard data only on your local network.\n\nWhy Android only: this release relies on Android Health Connect APIs for data access.\n\nProject source code and issue tracking are available on GitHub.</string>
+    <string name="about_message">Version: %1$s\n\nPrivacy: HelioLan keeps your health data on-device and serves dashboard data only on your local network.\n\nWhy Android only: this release relies on Android Health Connect APIs for data access.\n\nProject source code and issue tracking are available on GitHub.\n\nGitHub: https://github.com/AJMSD/HelioLan\nREADME: https://github.com/AJMSD/HelioLan/blob/main/README.md</string>
 </resources>
