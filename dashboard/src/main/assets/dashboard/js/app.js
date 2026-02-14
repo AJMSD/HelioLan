@@ -341,10 +341,14 @@
             el.viewContainer.innerHTML = skeleton();
         }
         try {
-            var pair = await Promise.all([api.getToday(force), api.getSyncStatus(force)]);
-            var today = data(pair[0]) || {};
-            var fresh = u.toMetricMap((meta(pair[0]) && meta(pair[0]).freshness) || {});
-            updateLastSynced(data(pair[1]));
+            var todayPayload = await api.getToday(force);
+            var today = data(todayPayload) || {};
+            var fresh = u.toMetricMap((meta(todayPayload) && meta(todayPayload).freshness) || {});
+            try {
+                updateLastSynced(data(await api.getSyncStatus(force)));
+            } catch (_syncError) {
+                updateLastSynced([]);
+            }
 
             var steps = Number(today.steps_today || 0);
             var pct = u.clamp(Math.round((steps / 10000) * 100), 0, 100);
@@ -816,21 +820,25 @@
             el.viewContainer.innerHTML = skeleton();
         }
         try {
-            var rows = await Promise.all([
+            var rows = await Promise.allSettled([
                 api.getSession(true),
                 api.getPermissions(force),
                 api.getServerInfo(force, true)
             ]);
-            var sess = data(rows[0]) || {};
-            var perm = data(rows[1]) || {};
-            var info = data(rows[2]) || {};
+            var sess = rows[0].status === "fulfilled" ? (data(rows[0].value) || {}) : {};
+            var perm = rows[1].status === "fulfilled" ? (data(rows[1].value) || {}) : {};
+            var info = rows[2].status === "fulfilled" ? (data(rows[2].value) || {}) : {};
+            var hasPartialFailure = rows.some(function (row) { return row.status === "rejected"; });
             s.session = sess;
             var secureOn = !sess.open_access_enabled;
             var now = new Date();
             var defaultFrom = u.toDateInputValue(u.shiftDate(now, -29));
             var defaultTo = u.toDateInputValue(now);
+            var partialWarning = hasPartialFailure
+                ? "<p class=\"metric-sub\">Some settings data is unavailable right now. Showing what loaded.</p>"
+                : "";
 
-            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Settings</p><h3>Preferences, security, exports</h3></div></section>" +
+            el.viewContainer.innerHTML = "<section class=\"view-head\"><div><p class=\"eyebrow\">Settings</p><h3>Preferences, security, exports</h3>" + partialWarning + "</div></section>" +
                 "<section class=\"settings-grid\">" +
                 "<article class=\"card settings-card\"><h4>Preferences</h4><div class=\"settings-row\"><label for=\"prefTime\">Time format</label><select id=\"prefTime\"><option value=\"12h\" " + (s.prefs.timeFormat === "12h" ? "selected" : "") + ">12-hour</option><option value=\"24h\" " + (s.prefs.timeFormat === "24h" ? "selected" : "") + ">24-hour</option></select><button id=\"savePrefs\" class=\"btn btn-secondary\" type=\"button\">Save Preferences</button></div></article>" +
                 "<article class=\"card settings-card\"><h4>Security</h4><div class=\"toggle-row\"><div><strong>Passcode protection</strong><p>Disable only on trusted LANs.</p></div><button id=\"securityToggle\" type=\"button\" class=\"toggle " + (secureOn ? "is-on" : "") + "\"></button></div><form id=\"passcodeForm\" class=\"settings-row\"><label for=\"currentPass\">Current passcode (optional)</label><input id=\"currentPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\"><label for=\"newPass\">New passcode</label><input id=\"newPass\" type=\"password\" inputmode=\"numeric\" maxlength=\"8\" placeholder=\"4-8 digits\"><button class=\"btn btn-secondary\" type=\"submit\">Update Passcode</button></form></article>" +
