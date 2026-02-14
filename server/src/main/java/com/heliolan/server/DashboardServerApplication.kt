@@ -521,7 +521,11 @@ fun Application.configureDashboardApplication(
                 val syncStatus = syncEngine.getSyncStatus()
                 val backfillAggregateDebug =
                     if (includeCaloriesDebug && backfillDays != null) {
-                        val backfillStart = today.minusDays((backfillDays - 1).toLong()).atStartOfDay(zoneId).toInstant()
+                        val backfillStart =
+                            today
+                                .minusDays((backfillDays - 1).toLong())
+                                .atStartOfDay(zoneId)
+                                .toInstant()
                         when (
                             val result =
                                 healthConnectReader.aggregateTotalCaloriesBurnedByDay(
@@ -612,7 +616,11 @@ fun Application.configureDashboardApplication(
                                     }
                                     when (totalCaloriesAggregateResult) {
                                         is AggregateReadResult.Success -> put("aggregate_status", "success")
-                                        is AggregateReadResult.PermissionDenied -> put("aggregate_status", "permission_denied")
+                                        is AggregateReadResult.PermissionDenied ->
+                                            put(
+                                                "aggregate_status",
+                                                "permission_denied",
+                                            )
                                         is AggregateReadResult.HealthConnectUnavailable ->
                                             put("aggregate_status", "health_connect_unavailable")
                                         is AggregateReadResult.Error -> {
