@@ -37,6 +37,7 @@ import io.ktor.http.Cookie
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.plugins.compression.Compression
@@ -1878,11 +1879,9 @@ private fun io.ktor.server.application.ApplicationCall.clearSessionCookie(cookie
 
 private class RequestBodyTooLargeException(
     maxBytes: Int,
-) : IllegalArgumentException("Request body exceeds ${maxBytes} bytes.")
+) : IllegalArgumentException("Request body exceeds $maxBytes bytes.")
 
-private suspend inline fun <reified T> io.ktor.server.application.ApplicationCall.receiveJsonBody(
-    maxBytes: Int,
-): T? {
+private suspend inline fun <reified T> ApplicationCall.receiveJsonBody(maxBytes: Int): T? {
     val contentLength = request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
     if (contentLength != null && contentLength > maxBytes) {
         throw RequestBodyTooLargeException(maxBytes)
