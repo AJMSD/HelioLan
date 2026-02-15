@@ -117,6 +117,7 @@ class HealthConnectReader
         private companion object {
             const val HEALTH_CONNECT_PAGE_SIZE = 1000
             const val HISTORY_WINDOW_DAYS = 30L
+            const val SLEEP_SESSION_CACHE_SIZE = 256
         }
 
         private val healthConnectClient: HealthConnectClient? by lazy<HealthConnectClient?> {
@@ -130,6 +131,13 @@ class HealthConnectReader
                 null
             }
         }
+        private val sleepSessionCacheLock = Any()
+        private val recentSleepSessionRecords =
+            object : LinkedHashMap<String, SleepSessionRecord>(SLEEP_SESSION_CACHE_SIZE, 0.75f, true) {
+                override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, SleepSessionRecord>?): Boolean {
+                    return size > SLEEP_SESSION_CACHE_SIZE
+                }
+            }
 
         /**
          * Read heart rate samples from Health Connect.
@@ -172,6 +180,7 @@ class HealthConnectReader
 
             return try {
                 val records = readAllRecords(client, SleepSessionRecord::class, startTime, endTime)
+                cacheSleepSessionRecords(records)
                 val sessions =
                     records.map { record ->
                         HealthConnectMapper.mapSleepSessionRecord(record)
@@ -190,6 +199,7 @@ class HealthConnectReader
          * Used after inserting a sleep session to get its stages.
          */
         private suspend fun readSleepSessionById(healthConnectId: String): SleepSessionRecord? {
+            getCachedSleepSessionRecord(healthConnectId)?.let { return it }
             val client = healthConnectClient ?: return null
 
             return try {
@@ -205,7 +215,10 @@ class HealthConnectReader
                             pageSize = HEALTH_CONNECT_PAGE_SIZE,
                         )
                     val response = client.readRecords(request)
-                    response.records.firstOrNull { it.metadata.id == healthConnectId }?.let { return it }
+                    response.records.firstOrNull { it.metadata.id == healthConnectId }?.let { matched ->
+                        cacheSleepSessionRecord(matched)
+                        return matched
+                    }
                     nextPageToken = response.pageToken
                 } while (nextPageToken != null)
 
@@ -224,7 +237,10 @@ class HealthConnectReader
             sessionId: Long,
             syncedAt: Instant = Instant.now(),
         ): List<SleepStage> {
-            val record = readSleepSessionById(healthConnectId) ?: return emptyList()
+            val record =
+                getCachedSleepSessionRecord(healthConnectId)
+                    ?: readSleepSessionById(healthConnectId)
+                    ?: return emptyList()
             return HealthConnectMapper.mapSleepStages(record, sessionId, syncedAt)
         }
 
@@ -518,6 +534,7 @@ class HealthConnectReader
                 changesToken = changesToken,
                 recordType = SleepSessionRecord::class,
                 mapper = { record ->
+                    cacheSleepSessionRecord(record)
                     listOf(HealthConnectMapper.mapSleepSessionRecord(record))
                 },
             )
@@ -689,6 +706,9 @@ class HealthConnectReader
                             }
 
                             is DeletionChange -> {
+                                if (recordType == SleepSessionRecord::class) {
+                                    removeCachedSleepSessionRecord(change.recordId)
+                                }
                                 deletedRecordIds += change.recordId
                             }
 
@@ -711,6 +731,33 @@ class HealthConnectReader
                 IncrementalReadResult.PermissionDenied
             } catch (e: Exception) {
                 IncrementalReadResult.Error("Failed to read changes: ${e.message}", e)
+            }
+        }
+
+        private fun cacheSleepSessionRecords(records: List<SleepSessionRecord>) {
+            if (records.isEmpty()) return
+            synchronized(sleepSessionCacheLock) {
+                records.forEach { record ->
+                    recentSleepSessionRecords[record.metadata.id] = record
+                }
+            }
+        }
+
+        private fun cacheSleepSessionRecord(record: SleepSessionRecord) {
+            synchronized(sleepSessionCacheLock) {
+                recentSleepSessionRecords[record.metadata.id] = record
+            }
+        }
+
+        private fun getCachedSleepSessionRecord(healthConnectId: String): SleepSessionRecord? {
+            synchronized(sleepSessionCacheLock) {
+                return recentSleepSessionRecords[healthConnectId]
+            }
+        }
+
+        private fun removeCachedSleepSessionRecord(healthConnectId: String) {
+            synchronized(sleepSessionCacheLock) {
+                recentSleepSessionRecords.remove(healthConnectId)
             }
         }
 
