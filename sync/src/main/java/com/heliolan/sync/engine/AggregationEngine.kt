@@ -241,9 +241,8 @@ class AggregationEngine
         ): DailyAggregate? {
             if (sessions.isEmpty()) return null
 
-            val durations = sessions.map { it.durationMs.toDouble() }
-            val totalDurationMs = durations.sum()
-            val avgDurationMs = durations.average()
+            val totalDurationMs = computeOverlapSafeSleepDurationMs(sessions).toDouble()
+            val avgDurationMs = totalDurationMs / sessions.size
             val earliestStartEpochMs = sessions.minOf { it.startTime.toEpochMilli().toDouble() }
             val latestEndEpochMs = sessions.maxOf { it.endTime.toEpochMilli().toDouble() }
 
@@ -257,6 +256,31 @@ class AggregationEngine
                 avg = avgDurationMs,
                 updatedAt = updatedAt,
             )
+        }
+
+        private fun computeOverlapSafeSleepDurationMs(sessions: List<SleepSession>): Long {
+            val sortedRanges =
+                sessions
+                    .map { session -> session.startTime.toEpochMilli() to session.endTime.toEpochMilli() }
+                    .filter { (start, end) -> end > start }
+                    .sortedBy { (start, _) -> start }
+            if (sortedRanges.isEmpty()) return 0L
+
+            var totalDurationMs = 0L
+            var currentStart = sortedRanges.first().first
+            var currentEnd = sortedRanges.first().second
+
+            sortedRanges.drop(1).forEach { (nextStart, nextEnd) ->
+                if (nextStart <= currentEnd) {
+                    currentEnd = maxOf(currentEnd, nextEnd)
+                } else {
+                    totalDurationMs += currentEnd - currentStart
+                    currentStart = nextStart
+                    currentEnd = nextEnd
+                }
+            }
+            totalDurationMs += currentEnd - currentStart
+            return totalDurationMs
         }
 
         private fun buildHeartRateAggregate(

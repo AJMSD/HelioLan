@@ -638,6 +638,65 @@ class AggregationEngineTest {
         }
 
     @Test
+    fun updateAggregatesForDate_sleepAggregate_usesOverlapSafeDurationTotal() =
+        runTest {
+            val zoneId = ZoneId.systemDefault()
+            val date = LocalDate.of(2026, 2, 12)
+            val dayStart = date.atStartOfDay(zoneId).toInstant()
+
+            val sleepSessions =
+                listOf(
+                    SleepSession(
+                        healthConnectId = "sleep-primary",
+                        startTime = dayStart.minusSeconds(2 * 3600),
+                        endTime = dayStart.plusSeconds(7 * 3600),
+                        durationMs = 9 * 3_600_000L,
+                        source = "test",
+                        syncedAt = dayStart.plusSeconds(1),
+                    ),
+                    SleepSession(
+                        healthConnectId = "sleep-fragment",
+                        startTime = dayStart.minusSeconds(30 * 60),
+                        endTime = dayStart.plusSeconds(60 * 60),
+                        durationMs = 90 * 60_000L,
+                        source = "test",
+                        syncedAt = dayStart.plusSeconds(2),
+                    ),
+                    SleepSession(
+                        healthConnectId = "sleep-nap",
+                        startTime = dayStart.plusSeconds(13 * 3600),
+                        endTime = dayStart.plusSeconds(14 * 3600),
+                        durationMs = 3_600_000L,
+                        source = "test",
+                        syncedAt = dayStart.plusSeconds(3),
+                    ),
+                )
+
+            coEvery { heartRateSampleDao.getSamplesForAggregation(any(), any()) } returns emptyList()
+            coEvery { stepsRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { sleepSessionDao.getSessionsForAggregation(any(), any()) } returns sleepSessions
+            coEvery { restingHeartRateDao.getRecordsForAggregation(date, date) } returns emptyList()
+            coEvery { activeCaloriesBurnedDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { distanceRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { totalCaloriesBurnedDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { nutritionRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { oxygenSaturationDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+            coEvery { hrvRecordDao.getRecordsForAggregation(any(), any()) } returns emptyList()
+
+            val inserted = mutableListOf<DailyAggregate>()
+            coEvery { dailyAggregateDao.upsert(capture(inserted)) } returns Unit
+
+            aggregationEngine.updateAggregatesForDate(date)
+
+            val sleepAggregate = inserted.first { it.recordType == RecordType.SLEEP }
+            assertThat(sleepAggregate.value).isEqualTo(36_000_000.0)
+            assertThat(sleepAggregate.count).isEqualTo(3)
+            assertThat(sleepAggregate.avg).isEqualTo(12_000_000.0)
+            assertThat(sleepAggregate.min).isEqualTo(dayStart.minusSeconds(2 * 3600).toEpochMilli().toDouble())
+            assertThat(sleepAggregate.max).isEqualTo(dayStart.plusSeconds(14 * 3600).toEpochMilli().toDouble())
+        }
+
+    @Test
     fun rebuildAllAggregates_clearsTableWhenNoSourceDataExists() =
         runTest {
             coEvery { heartRateSampleDao.getOldestTimestamp() } returns null

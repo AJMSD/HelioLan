@@ -398,6 +398,102 @@
         }, null);
     }
 
+    function sameSleepSession(a, b) {
+        if (!a || !b) return false;
+        if (a.health_connect_id && b.health_connect_id) {
+            return String(a.health_connect_id) === String(b.health_connect_id);
+        }
+        if (a.id && b.id) {
+            return String(a.id) === String(b.id);
+        }
+        return false;
+    }
+
+    function parseEpochMs(value) {
+        var date = new Date(value);
+        if (Number.isNaN(date.getTime())) {
+            return null;
+        }
+        return date.getTime();
+    }
+
+    function sleepSessionDurationMs(session) {
+        var startMs = parseEpochMs(session && session.start_time);
+        var endMs = parseEpochMs(session && session.end_time);
+        if (startMs === null || endMs === null || endMs <= startMs) {
+            return Math.max(0, Number(session && session.duration_ms) || 0);
+        }
+        return endMs - startMs;
+    }
+
+    function overlapSafeSleepDurationMs(sessions) {
+        var ranges = u.safeArray(sessions).map(function toRange(session) {
+            var startMs = parseEpochMs(session && session.start_time);
+            var endMs = parseEpochMs(session && session.end_time);
+            if (startMs === null || endMs === null || endMs <= startMs) {
+                return null;
+            }
+            return [startMs, endMs];
+        }).filter(function keep(range) {
+            return Array.isArray(range);
+        }).sort(function byStart(a, b) {
+            return a[0] - b[0];
+        });
+
+        if (!ranges.length) {
+            return 0;
+        }
+
+        var totalDurationMs = 0;
+        var currentStart = ranges[0][0];
+        var currentEnd = ranges[0][1];
+        ranges.slice(1).forEach(function merge(range) {
+            var nextStart = range[0];
+            var nextEnd = range[1];
+            if (nextStart <= currentEnd) {
+                currentEnd = Math.max(currentEnd, nextEnd);
+                return;
+            }
+            totalDurationMs += currentEnd - currentStart;
+            currentStart = nextStart;
+            currentEnd = nextEnd;
+        });
+        totalDurationMs += currentEnd - currentStart;
+        return totalDurationMs;
+    }
+
+    function splitSleepSessionsForDisplay(sessions) {
+        var normalizedSessions = u.safeArray(sessions);
+        var primarySession = longest(normalizedSessions);
+        var overlapSafeTotalMs = overlapSafeSleepDurationMs(normalizedSessions);
+        if (!primarySession) {
+            return {
+                primary: null,
+                primaryDurationMs: 0,
+                otherSessions: [],
+                otherUniqueDurationMs: 0,
+                overlapSafeTotalMs: overlapSafeTotalMs
+            };
+        }
+
+        var primaryDurationMs = Math.max(0, sleepSessionDurationMs(primarySession));
+        if (overlapSafeTotalMs > 0) {
+            primaryDurationMs = Math.min(primaryDurationMs, overlapSafeTotalMs);
+        }
+        var otherSessions = normalizedSessions.filter(function filterOther(session) {
+            return !sameSleepSession(session, primarySession);
+        });
+        var otherUniqueDurationMs = Math.max(0, overlapSafeTotalMs - primaryDurationMs);
+
+        return {
+            primary: primarySession,
+            primaryDurationMs: primaryDurationMs,
+            otherSessions: otherSessions,
+            otherUniqueDurationMs: otherUniqueDurationMs,
+            overlapSafeTotalMs: overlapSafeTotalMs
+        };
+    }
+
     async function renderSleep(force, silent) {
         if (!silent) {
             el.viewContainer.innerHTML = skeleton();
@@ -419,6 +515,7 @@
             var aggs = u.safeArray(data(rows[1])).sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
             var week = u.safeArray(data(rows[2]));
             var chosen = longest(sessions);
+            var groupedSessions = splitSleepSessionsForDisplay(sessions);
             var bedVar = Math.round(u.varianceMinutes(week.map(function (r) { return r.start_time; })));
             var wakeVar = Math.round(u.varianceMinutes(week.map(function (r) { return r.end_time; })));
 
@@ -427,7 +524,7 @@
                 "<section class=\"card-grid\">" +
                 "<article class=\"card span-6\"><h4>Selected Night</h4>" + (chosen ? "<p class=\"metric\">" + esc(u.formatDurationMs(chosen.duration_ms)) + "</p><p class=\"metric-sub\">Bed " + esc(u.formatTime(chosen.start_time, s.prefs)) + " | Wake " + esc(u.formatTime(chosen.end_time, s.prefs)) + "</p>" : empty("No sleep data for selected date.")) + "</article>" +
                 "<article class=\"card span-6\"><h4>Weekly Consistency</h4><p class=\"metric\">+/-" + esc(bedVar) + "m</p><p class=\"metric-sub\">Bed variance | Wake variance +/-" + esc(wakeVar) + "m</p></article>" +
-                "<article class=\"card span-6\"><h4>Sleep Sessions (Date)</h4><div class=\"chart-wrap\"><canvas id=\"sleepSessionChart\"></canvas></div></article>" +
+                "<article class=\"card span-6\"><h4>Sleep Sessions (Date)</h4><p id=\"sleepSessionSummary\" class=\"metric-sub\"></p><div class=\"chart-wrap\"><canvas id=\"sleepSessionChart\"></canvas></div></article>" +
                 "<article class=\"card span-6\"><h4>" + esc(win) + "-Day Trend</h4><div class=\"chart-wrap\"><canvas id=\"sleepTrendChart\"></canvas></div></article>" +
                 "</section>";
 
@@ -439,9 +536,34 @@
             });
 
             if (sessions.length) {
+                var aggregateTotalMs = groupedSessions.overlapSafeTotalMs;
+                var summaryParts = [
+                    "Primary " + u.formatDurationMs(groupedSessions.primaryDurationMs),
+                    "Total " + u.formatDurationMs(aggregateTotalMs)
+                ];
+                if (groupedSessions.otherSessions.length) {
+                    summaryParts.splice(
+                        1,
+                        0,
+                        "Other unique " +
+                            u.formatDurationMs(groupedSessions.otherUniqueDurationMs) +
+                            " from " +
+                            groupedSessions.otherSessions.length +
+                            " session" +
+                            (groupedSessions.otherSessions.length === 1 ? "" : "s")
+                    );
+                }
+                byId("sleepSessionSummary").textContent = summaryParts.join(" | ");
+
+                var sessionLabels = ["Primary Night"];
+                var sessionValues = [groupedSessions.primaryDurationMs / 3600000];
+                if (groupedSessions.otherSessions.length) {
+                    sessionLabels.push("Other Sessions");
+                    sessionValues.push(groupedSessions.otherUniqueDurationMs / 3600000);
+                }
                 charts.horizontalDuration("sleepSessionChart", {
-                    labels: sessions.map(function (r) { return u.formatTime(r.start_time, s.prefs); }),
-                    values: sessions.map(function (r) { return Number(r.duration_ms || 0) / 3600000; }),
+                    labels: sessionLabels,
+                    values: sessionValues,
                     color: "#3f7858",
                     animate: !silent,
                     tickFormatter: function (v) { return v + "h"; }
