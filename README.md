@@ -13,6 +13,8 @@ README: https://github.com/AJMSD/HelioLan/blob/main/README.md
 - Laptop (or desktop) with a web browser
 - Phone and laptop on the same Wi-Fi
 
+HelioLAN currently supports Android only. iOS/Apple is not supported because Apple platform restrictions do not allow this same local-dashboard + background-sync flow.
+
 ## Setup
 
 1. Install and open HelioLAN on your Android phone.
@@ -47,6 +49,15 @@ If you deny a permission, that part of the dashboard can appear empty.
 - The "Last synced" time updates.
 - You can see values on Today, Sleep, Cardio, Activity, and Nutrition.
 
+## Known Limitations
+
+- Data freshness can lag (often around 15-20 minutes, sometimes longer) because HelioLAN can only read what Zepp has already written into Health Connect.
+- Metric coverage is limited to what Zepp exposes to Health Connect and what permissions you grant.
+- Sync is not truly real-time. Android background limits (Doze/OEM battery optimizers) can delay updates.
+- If Zepp, Health Connect, and HelioLAN are not allowed to run properly in background, updates can become slow.
+- Better background behavior usually costs more battery.
+- Older historical data may be limited without Health Connect history permission.
+
 ## Troubleshooting
 
 - Symptom: Laptop cannot open the page.
@@ -63,6 +74,15 @@ If you deny a permission, that part of the dashboard can appear empty.
 
 - Symptom: Dashboard stops after a while.
   Fix: Keep HelioLAN running and disable battery-saving restrictions for the app.
+
+## Personal Notes
+
+- This setup has been tested on an older secondary Android phone, not a primary daily-use phone.
+- A MacroDroid automation was used to try improving Zepp -> Health Connect freshness:
+  - Open Zepp on a locked phone for ~10 seconds.
+  - Return to Home automatically.
+- In practice, this only showed limited improvement, but it may still help in some device/app combinations.
+- This approach will not be practical for everyone, so treat it as an optional workaround.
 
 ## Privacy Promise
 
