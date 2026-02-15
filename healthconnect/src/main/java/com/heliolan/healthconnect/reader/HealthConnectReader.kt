@@ -144,15 +144,9 @@ class HealthConnectReader
                     ?: return ReadResult.HealthConnectUnavailable
 
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = HeartRateRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, HeartRateRecord::class, startTime, endTime)
                 val samples =
-                    response.records.flatMap { record ->
+                    records.flatMap { record ->
                         HealthConnectMapper.mapHeartRateRecord(record)
                     }
 
@@ -177,15 +171,9 @@ class HealthConnectReader
                     ?: return ReadResult.HealthConnectUnavailable
 
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = SleepSessionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, SleepSessionRecord::class, startTime, endTime)
                 val sessions =
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapSleepSessionRecord(record)
                     }
 
@@ -205,16 +193,23 @@ class HealthConnectReader
             val client = healthConnectClient ?: return null
 
             return try {
-                // Read all recent sleep sessions and find the one matching this ID
-                // Note: Health Connect doesn't have a "read by ID" API yet
-                val request =
-                    ReadRecordsRequest(
-                        recordType = SleepSessionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.before(Instant.now()),
-                    )
+                val endTime = Instant.now()
+                var nextPageToken: String? = null
 
-                val response = client.readRecords(request)
-                response.records.firstOrNull { it.metadata.id == healthConnectId }
+                do {
+                    val request =
+                        ReadRecordsRequest(
+                            recordType = SleepSessionRecord::class,
+                            timeRangeFilter = TimeRangeFilter.before(endTime),
+                            pageToken = nextPageToken,
+                            pageSize = HEALTH_CONNECT_PAGE_SIZE,
+                        )
+                    val response = client.readRecords(request)
+                    response.records.firstOrNull { it.metadata.id == healthConnectId }?.let { return it }
+                    nextPageToken = response.pageToken
+                } while (nextPageToken != null)
+
+                null
             } catch (e: Exception) {
                 null
             }
@@ -245,15 +240,9 @@ class HealthConnectReader
                     ?: return ReadResult.HealthConnectUnavailable
 
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = StepsRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, StepsRecord::class, startTime, endTime)
                 val steps =
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapStepsRecord(record)
                     }
 
@@ -277,15 +266,9 @@ class HealthConnectReader
                     ?: return ReadResult.HealthConnectUnavailable
 
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = RestingHeartRateRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, RestingHeartRateRecord::class, startTime, endTime)
                 val restingHr =
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapRestingHeartRateRecord(record)
                     }
 
@@ -306,14 +289,9 @@ class HealthConnectReader
         ): ReadResult<ActiveCaloriesBurned> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = ActiveCaloriesBurnedRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, ActiveCaloriesBurnedRecord::class, startTime, endTime)
                 ReadResult.Success(
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapActiveCaloriesBurnedRecord(record)
                     },
                 )
@@ -333,14 +311,9 @@ class HealthConnectReader
         ): ReadResult<DistanceRecordEntity> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = DistanceRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, DistanceRecord::class, startTime, endTime)
                 ReadResult.Success(
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapDistanceRecord(record)
                     },
                 )
@@ -360,26 +333,12 @@ class HealthConnectReader
         ): ReadResult<TotalCaloriesBurned> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val mapped = mutableListOf<TotalCaloriesBurned>()
-                var nextPageToken: String? = null
-
-                do {
-                    val request =
-                        ReadRecordsRequest(
-                            recordType = TotalCaloriesBurnedRecord::class,
-                            timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                            pageToken = nextPageToken,
-                            pageSize = HEALTH_CONNECT_PAGE_SIZE,
-                        )
-                    val response = client.readRecords(request)
-                    mapped +=
-                        response.records.map { record ->
-                            HealthConnectMapper.mapTotalCaloriesBurnedRecord(record)
-                        }
-                    nextPageToken = response.pageToken
-                } while (nextPageToken != null)
-
-                ReadResult.Success(mapped)
+                val records = readAllRecords(client, TotalCaloriesBurnedRecord::class, startTime, endTime)
+                ReadResult.Success(
+                    records.map { record ->
+                        HealthConnectMapper.mapTotalCaloriesBurnedRecord(record)
+                    },
+                )
             } catch (e: SecurityException) {
                 ReadResult.PermissionDenied
             } catch (e: Exception) {
@@ -480,14 +439,9 @@ class HealthConnectReader
         ): ReadResult<NutritionRecordEntity> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = NutritionRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, NutritionRecord::class, startTime, endTime)
                 ReadResult.Success(
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapNutritionRecord(record)
                     },
                 )
@@ -507,14 +461,9 @@ class HealthConnectReader
         ): ReadResult<OxygenSaturation> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = OxygenSaturationRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, OxygenSaturationRecord::class, startTime, endTime)
                 ReadResult.Success(
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapOxygenSaturationRecord(record)
                     },
                 )
@@ -534,14 +483,9 @@ class HealthConnectReader
         ): ReadResult<HrvRecord> {
             val client = healthConnectClient ?: return ReadResult.HealthConnectUnavailable
             return try {
-                val request =
-                    ReadRecordsRequest(
-                        recordType = HeartRateVariabilityRmssdRecord::class,
-                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
-                    )
-                val response = client.readRecords(request)
+                val records = readAllRecords(client, HeartRateVariabilityRmssdRecord::class, startTime, endTime)
                 ReadResult.Success(
-                    response.records.map { record ->
+                    records.map { record ->
                         HealthConnectMapper.mapHrvRecord(record)
                     },
                 )
@@ -668,6 +612,31 @@ class HealthConnectReader
             } catch (e: Exception) {
                 false
             }
+        }
+
+        private suspend fun <R : Record> readAllRecords(
+            client: HealthConnectClient,
+            recordType: KClass<R>,
+            startTime: Instant,
+            endTime: Instant,
+        ): List<R> {
+            val records = mutableListOf<R>()
+            var nextPageToken: String? = null
+
+            do {
+                val request =
+                    ReadRecordsRequest(
+                        recordType = recordType,
+                        timeRangeFilter = TimeRangeFilter.between(startTime, endTime),
+                        pageToken = nextPageToken,
+                        pageSize = HEALTH_CONNECT_PAGE_SIZE,
+                    )
+                val response = client.readRecords(request)
+                records += response.records
+                nextPageToken = response.pageToken
+            } while (nextPageToken != null)
+
+            return records
         }
 
         private fun requiresHistoryPermission(startTime: Instant): Boolean {

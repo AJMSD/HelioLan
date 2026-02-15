@@ -22,6 +22,20 @@ val releaseKeyPasswordProvider =
     providers
         .gradleProperty("HELIOLAN_RELEASE_KEY_PASSWORD")
         .orElse(providers.environmentVariable("HELIOLAN_RELEASE_KEY_PASSWORD"))
+val useChangesApiForAutomaticSyncProvider =
+    providers
+        .gradleProperty("HELIOLAN_USE_CHANGES_API_AUTOMATIC")
+        .orElse(providers.environmentVariable("HELIOLAN_USE_CHANGES_API_AUTOMATIC"))
+        .map { raw ->
+            when (raw.trim().lowercase()) {
+                "1",
+                "true",
+                "yes",
+                "on",
+                -> "true"
+                else -> "false"
+            }
+        }.orElse("false")
 
 val releaseSigningConfigured =
     !releaseStoreFilePathProvider.orNull.isNullOrBlank() &&
@@ -39,6 +53,11 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0.0"
+        buildConfigField(
+            "boolean",
+            "USE_CHANGES_API_AUTOMATIC_SYNC",
+            useChangesApiForAutomaticSyncProvider.get(),
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

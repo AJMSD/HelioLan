@@ -35,11 +35,16 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    private companion object {
+        const val STARTUP_SYNC_TIMEOUT_MILLIS = 20_000L
+    }
+
     @Inject
     lateinit var permissionManager: PermissionManager
 
@@ -58,6 +63,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var healthPermissionLauncher: ActivityResultLauncher<Set<String>>
 
+    private var startupSyncJob: Job? = null
     private var statusMonitorJob: Job? = null
     private var currentDashboardUrl: String? = null
     private var lastAvailability: HealthConnectAvailability? = null
@@ -88,12 +94,14 @@ class MainActivity : ComponentActivity() {
         bindBottomNavigation()
         showSection(MainSection.OVERVIEW)
 
-        lifecycleScope.launch {
-            refreshAvailabilityAndPermissions()
-            refreshSyncSummary()
-            refreshServerState()
-            updateEnvironmentWarnings()
-        }
+        startupSyncJob =
+            lifecycleScope.launch {
+                refreshAvailabilityAndPermissions()
+                refreshServerState()
+                runStartupSync()
+                refreshSyncSummary()
+                updateEnvironmentWarnings()
+            }
     }
 
     override fun onResume() {
@@ -196,6 +204,7 @@ class MainActivity : ComponentActivity() {
         if (statusMonitorJob != null) return
         statusMonitorJob =
             lifecycleScope.launch {
+                startupSyncJob?.join()
                 while (true) {
                     refreshServerState()
                     refreshSyncSummary()
@@ -247,6 +256,25 @@ class MainActivity : ComponentActivity() {
             binding.syncNowButton.isEnabled = true
             refreshAvailabilityAndPermissions()
             refreshSyncSummary()
+        }
+    }
+
+    private suspend fun runStartupSync() {
+        binding.syncStateValueTextView.text = getString(R.string.main_sync_running)
+        val startupResult =
+            withTimeoutOrNull(STARTUP_SYNC_TIMEOUT_MILLIS) {
+                syncScheduler.syncAutomatic()
+            }
+
+        if (startupResult == null) {
+            binding.syncStateValueTextView.text =
+                getString(R.string.main_sync_failure, "Automatic startup sync timed out")
+            return
+        }
+
+        binding.syncStateValueTextView.text = startupResult.toDisplayString()
+        if (startupResult is SyncResult.Success || startupResult is SyncResult.PartialSuccess) {
+            setupPreferences.setFirstSyncCompleted(true)
         }
     }
 

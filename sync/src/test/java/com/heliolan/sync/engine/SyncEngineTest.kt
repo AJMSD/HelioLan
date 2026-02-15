@@ -218,6 +218,20 @@ class SyncEngineTest {
         }
 
     @Test
+    fun syncRecordType_automaticTrigger_doesNotDebounceAfterFailure() =
+        runTest {
+            coEvery { healthConnectReader.readSteps(any(), any()) } returns ReadResult.PermissionDenied
+
+            val first = syncEngine.syncRecordType(recordType = RecordType.STEPS, trigger = SyncTrigger.AUTOMATIC)
+            val second = syncEngine.syncRecordType(recordType = RecordType.STEPS, trigger = SyncTrigger.AUTOMATIC)
+
+            assertThat(first).isInstanceOf(SyncResult.Failure::class.java)
+            assertThat(second).isInstanceOf(SyncResult.Failure::class.java)
+            assertThat((first as SyncResult.Failure).error.code).isEqualTo(SyncErrorCode.PERMISSION_DENIED)
+            assertThat((second as SyncResult.Failure).error.code).isEqualTo(SyncErrorCode.PERMISSION_DENIED)
+        }
+
+    @Test
     fun syncRecordType_userTrigger_usesPolling_whenChangesApiIsEnabled() =
         runTest {
             syncEngine.config = syncEngine.config.copy(useChangesApiForAutomaticSync = true)

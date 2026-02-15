@@ -95,7 +95,7 @@ class SyncEngine
 
         private val syncMutex = Mutex()
         private val progressUpdates = MutableSharedFlow<SyncProgress>(extraBufferCapacity = 32)
-        private var lastSyncAttemptAt: Instant? = null
+        private var lastSuccessfulAutomaticSyncAt: Instant? = null
 
         val progress: SharedFlow<SyncProgress> = progressUpdates.asSharedFlow()
 
@@ -142,7 +142,6 @@ class SyncEngine
                         ),
                     )
                 }
-                lastSyncAttemptAt = startedAt
 
                 try {
                     withTimeout(config.timeoutMillis) {
@@ -163,11 +162,16 @@ class SyncEngine
                                 records = summaries,
                             )
 
-                        when {
-                            errors.isEmpty() -> SyncResult.Success(summary)
-                            summaries.isNotEmpty() -> SyncResult.PartialSuccess(summary, errors)
-                            else -> SyncResult.Failure(errors.first())
+                        val result =
+                            when {
+                                errors.isEmpty() -> SyncResult.Success(summary)
+                                summaries.isNotEmpty() -> SyncResult.PartialSuccess(summary, errors)
+                                else -> SyncResult.Failure(errors.first())
+                            }
+                        if (trigger != SyncTrigger.USER && result.isSuccessful()) {
+                            lastSuccessfulAutomaticSyncAt = summary.completedAt
                         }
+                        result
                     }
                 } catch (timeout: TimeoutCancellationException) {
                     SyncResult.Failure(
@@ -1115,8 +1119,12 @@ class SyncEngine
         }
 
         private fun isDebounced(now: Instant): Boolean {
-            val last = lastSyncAttemptAt ?: return false
+            val last = lastSuccessfulAutomaticSyncAt ?: return false
             return Duration.between(last, now).seconds < config.debounceSeconds
+        }
+
+        private fun SyncResult.isSuccessful(): Boolean {
+            return this is SyncResult.Success || this is SyncResult.PartialSuccess
         }
 
         private fun emitProgress(
