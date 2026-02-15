@@ -35,16 +35,11 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
-    private companion object {
-        const val STARTUP_SYNC_TIMEOUT_MILLIS = 20_000L
-    }
-
     @Inject
     lateinit var permissionManager: PermissionManager
 
@@ -98,7 +93,6 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 refreshAvailabilityAndPermissions()
                 refreshServerState()
-                runStartupSync()
                 refreshSyncSummary()
                 updateEnvironmentWarnings()
             }
@@ -256,25 +250,6 @@ class MainActivity : ComponentActivity() {
             binding.syncNowButton.isEnabled = true
             refreshAvailabilityAndPermissions()
             refreshSyncSummary()
-        }
-    }
-
-    private suspend fun runStartupSync() {
-        binding.syncStateValueTextView.text = getString(R.string.main_sync_running)
-        val startupResult =
-            withTimeoutOrNull(STARTUP_SYNC_TIMEOUT_MILLIS) {
-                syncScheduler.syncAutomatic()
-            }
-
-        if (startupResult == null) {
-            binding.syncStateValueTextView.text =
-                getString(R.string.main_sync_failure, "Automatic startup sync timed out")
-            return
-        }
-
-        binding.syncStateValueTextView.text = startupResult.toDisplayString()
-        if (startupResult is SyncResult.Success || startupResult is SyncResult.PartialSuccess) {
-            setupPreferences.setFirstSyncCompleted(true)
         }
     }
 
