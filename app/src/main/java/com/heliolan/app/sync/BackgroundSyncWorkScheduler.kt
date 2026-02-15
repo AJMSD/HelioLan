@@ -1,6 +1,7 @@
 package com.heliolan.app.sync
 
 import android.content.Context
+import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
@@ -20,6 +21,13 @@ class BackgroundSyncWorkScheduler
     constructor(
         @ApplicationContext private val context: Context,
     ) {
+        companion object {
+            const val SYNC_INTERVAL_MINUTES = 15L
+            const val INITIAL_DELAY_MINUTES = 1L
+            const val RETRY_BACKOFF_MINUTES = 10L
+            const val UNIQUE_WORK_NAME = "heliolan_background_sync"
+        }
+
         fun ensureScheduled() {
             val constraints =
                 Constraints.Builder()
@@ -28,9 +36,14 @@ class BackgroundSyncWorkScheduler
                     .build()
 
             val request =
-                PeriodicWorkRequestBuilder<BackgroundSyncWorker>(15, TimeUnit.MINUTES)
+                PeriodicWorkRequestBuilder<BackgroundSyncWorker>(SYNC_INTERVAL_MINUTES, TimeUnit.MINUTES)
                     .setConstraints(constraints)
-                    .setInitialDelay(1, TimeUnit.MINUTES)
+                    .setInitialDelay(INITIAL_DELAY_MINUTES, TimeUnit.MINUTES)
+                    .setBackoffCriteria(
+                        BackoffPolicy.EXPONENTIAL,
+                        RETRY_BACKOFF_MINUTES,
+                        TimeUnit.MINUTES,
+                    )
                     .build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
@@ -38,9 +51,5 @@ class BackgroundSyncWorkScheduler
                 ExistingPeriodicWorkPolicy.UPDATE,
                 request,
             )
-        }
-
-        companion object {
-            const val UNIQUE_WORK_NAME = "heliolan_background_sync"
         }
     }
