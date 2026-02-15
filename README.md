@@ -1,6 +1,6 @@
 # HelioLAN
 
-HelioLAN lets you see your phone health data on a laptop browser over your home Wi-Fi. It is built for quick daily check-ins and sharing a bigger screen view.
+HelioLAN lets you see your phone health data on a laptop browser over your home Wi-Fi. It is meant for people who do not want to pick up their phone while working and want a larger-screen view of their metrics.
 
 Repository: https://github.com/AJMSD/HelioLan
 README: https://github.com/AJMSD/HelioLan/blob/main/README.md
