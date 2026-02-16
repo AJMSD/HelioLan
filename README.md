@@ -10,6 +10,7 @@ README: https://github.com/AJMSD/HelioLan/blob/main/README.md
 - Android phone
 - Zepp app connected to your watch/band
 - Health Connect on your phone
+- MacroDroid or Tasker (needed for reliable Zepp -> Health Connect sync in this setup)
 - Laptop (or desktop) with a web browser
 - Phone and laptop on the same Wi-Fi
 
@@ -52,6 +53,7 @@ If you deny a permission, that part of the dashboard can appear empty.
 ## Known Limitations
 
 - Data freshness can lag (often around 15-20 minutes, sometimes longer) because HelioLAN can only read what Zepp has already written into Health Connect.
+- Zepp sync from the Amazfit Helio strap is unreliable without automation. In this setup, MacroDroid or Tasker is used to keep Zepp writing data into Health Connect consistently.
 - Metric coverage is limited to what Zepp exposes to Health Connect and what permissions you grant.
 - Sync is not truly real-time. Android background limits (Doze/OEM battery optimizers) can delay updates.
 - If Zepp, Health Connect, and HelioLAN are not allowed to run properly in background, updates can become slow.
@@ -78,13 +80,12 @@ If you deny a permission, that part of the dashboard can appear empty.
 ## Personal Notes
 
 - This setup has been tested on an older secondary Android phone, not a primary daily-use phone.
-- A MacroDroid automation was used to try improving Zepp -> Health Connect freshness:
+- MacroDroid or Tasker is used to make Zepp -> Health Connect sync reliable with the Amazfit Helio strap.
+- MacroDroid automation example:
   - Open Zepp on a locked phone for ~10 seconds.
   - Return to Home automatically.
-- In practice, this only showed limited improvement, but it may still help in some device/app combinations.
-- This approach will not be practical for everyone, so treat it as an optional workaround.
+- Without this kind of automation, sync behavior can become unreliable in this device/app combination.
 
 ## Privacy Promise
 
 By default, HelioLAN keeps your data on your phone and your local Wi-Fi network. Nothing is sent to outside services unless you choose to export/share it yourself.
-
